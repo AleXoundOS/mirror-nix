@@ -1,0 +1,4 @@
+.stack-work/
+nixos-mirror.cabal
+*~
+dist-newstyle
