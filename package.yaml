@@ -1,7 +1,7 @@
-name:                nixos-mirror
+name:                nix-mirror
 version:             0.1.0.0
-github:              "alexoundos/nixos-mirror"
-license:             GPL3
+github:              "alexoundos/nix-mirror"
+license:             GPL-3
 author:              "Alexander Tomokhov"
 maintainer:          "Alexander Tomokhov"
 copyright:           "Alexander Tomokhov"
@@ -16,7 +16,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/alexoundos/nixos-mirror#readme>
+description:         Please see the README on GitHub at <https://github.com/alexoundos/nix-mirror#readme>
 
 dependencies:
 - base >= 4.7 && < 5
@@ -25,7 +25,7 @@ library:
   source-dirs: src
 
 executables:
-  nixos-mirror-exe:
+  nix-mirror-exe:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -33,10 +33,11 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - nixos-mirror
+    - nix-mirror
+    - optparse-applicative
 
 tests:
-  nixos-mirror-test:
+  nix-mirror-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
@@ -44,4 +45,4 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - nixos-mirror
+    - nix-mirror
