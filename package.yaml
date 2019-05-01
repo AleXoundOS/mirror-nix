@@ -23,6 +23,8 @@ dependencies:
 
 library:
   source-dirs: src
+  dependencies:
+  - req
 
 executables:
   nix-mirror-exe:
@@ -38,7 +40,7 @@ executables:
 
 tests:
   nix-mirror-test:
-    main:                Spec.hs
+    main:                Test.hs
     source-dirs:         test
     ghc-options:
     - -threaded
@@ -46,3 +48,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - nix-mirror
+    - bytestring
+    - req
+    - data-default-class
+    - text
