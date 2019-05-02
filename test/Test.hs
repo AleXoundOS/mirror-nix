@@ -1,25 +1,28 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
 
-module Main
-  ( main, downloadFile
-  ) where
+module Main where
 
 import Network.HTTP.Req
-import qualified Data.ByteString.Lazy.Char8 as LBS
+import Network.HTTP.Req.Conduit
+import qualified Data.ByteString.Char8 as BS
   (ByteString, putStrLn, writeFile)
--- import qualified Data.Text as T (Text)
 import Data.Default.Class
 import Control.Monad.IO.Class
+import Conduit ((.|), runConduitRes, sinkFileCautious)
 
 
-testUrl :: Url 'Https
-testUrl = https "cache.nixos.org" /: "37a8nkijf2vy350q3lxhjmxwdnpm6lnf.narinfo"
+testHostname :: Url 'Https
+testHostname = https "cache.nixos.org"
 
 main :: IO ()
-main = downloadFile
+main =
+  downloadFile "nar/1wf20f50458zf9x3dvrhyd04hzn7m71qg24aq1jsv01cvnb692a6.nar.xz"
+  -- BS.writeFile "testData.raw"
+  -- =<< downloadFile
+  -- "nar/1wf20f50458zf9x3dvrhyd04hzn7m71qg24aq1jsv01cvnb692a6.nar.xz"
 
-downloadFile :: IO ()
-downloadFile = runReq def $ do
-  lbs <- req GET testUrl NoReqBody lbsResponse mempty
-  liftIO $ LBS.putStrLn (responseBody lbs)
+downloadFile :: String -> IO ()
+downloadFile path = runReq def $ do
+  reqBr GET (testHostname /~ path) NoReqBody mempty $ \r ->
+    runConduitRes $ responseBodySource r .| sinkFileCautious "testFile.raw"

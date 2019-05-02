@@ -7,7 +7,7 @@ maintainer:          "Alexander Tomokhov"
 copyright:           "Alexander Tomokhov"
 
 extra-source-files:
-- README.md
+- README.org
 
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
@@ -51,4 +51,5 @@ tests:
     - bytestring
     - req
     - data-default-class
-    - text
+    - conduit
+    - req-conduit
