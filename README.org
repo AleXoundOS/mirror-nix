@@ -13,3 +13,9 @@ separate project.
 - resumable downloads
 - ensure files integrity after checksumming by utilizing btrfs snapshots
   capability
+
+* questions
+- does the mirror process benefit from the `req` package (instead of
+  `http-conduit`)?
+  * advantages: automatic retries
+  * disadvantage: `req` brings twice more dependencies

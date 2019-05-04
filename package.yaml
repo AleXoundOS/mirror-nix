@@ -48,8 +48,9 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - nix-mirror
-    - bytestring
     - req
     - data-default-class
     - conduit
     - req-conduit
+    - http-client
+    - http-types
