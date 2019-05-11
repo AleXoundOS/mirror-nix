@@ -2,7 +2,7 @@
 
 module System.Nix.Narinfo where
 
-import Data.Text as T (Text, unpack)
+import Data.Text as T (Text, split, unpack)
 import Data.YAML as Y
 
 
@@ -28,16 +28,21 @@ instance FromYAML NarInfo where
     <$> fmap T.unpack (m .: "StorePath")
     <*> m .: "URL"
     <*> (mkNarCompression =<< m .: "Compression")
-    <*> m .: "FileHash"
+    <*> (mkFileHash =<< m .: "FileHash")
     <*> m .: "FileSize"
     <*> m .: "NarHash"
     <*> m .: "NarSize"
     <*> m .: "References"
     <*> m .: "Deriver"
     <*> m .: "Sig"
-  parseYAML _ = fail "fail"
+  parseYAML _ = fail "given bytestring does not begin with yaml map!"
 
-mkNarCompression :: Monad f => Text -> f NarCompressionType
+mkNarCompression :: Monad m => Text -> m NarCompressionType
 mkNarCompression "xz" = pure CompXz
 -- If not using `fail` then what? `empty` does not include a custom message.
-mkNarCompression _ = fail "compression type read from Narinfo is not `xz`!"
+mkNarCompression _ = fail "`Compression` type read from Narinfo is not `xz`!"
+
+mkFileHash :: Monad m => Text -> m Text
+mkFileHash t = case T.split (== ':') t of
+                 ["sha256", base32hash] -> pure base32hash
+                 _ -> fail "sha256 `FileHash` cannot be parsed!"
