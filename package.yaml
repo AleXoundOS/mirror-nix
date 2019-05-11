@@ -21,18 +21,6 @@ description:         Please see the README on GitHub at <https://github.com/alex
 dependencies:
 - base >= 4.7 && < 5
 
-library:
-  source-dirs: src
-  # exposed-modules:
-  #   - abc
-  dependencies:
-    - HsYAML
-    - bytestring
-    - cryptohash-sha256
-    - req
-    - text
-    - vector
-
 executables:
   nix-mirror-exe:
     main:                Main.hs
@@ -42,8 +30,13 @@ executables:
       - -rtsopts
       - -with-rtsopts=-N
     dependencies:
-      - nix-mirror
       - optparse-applicative
+      - HsYAML
+      - bytestring
+      - cryptohash-sha256
+      - req
+      - text
+      - vector
 
 tests:
   nix-mirror-test:
@@ -54,7 +47,6 @@ tests:
       - -rtsopts
       - -with-rtsopts=-N
     dependencies:
-      - nix-mirror
       - req
       - data-default-class
       - conduit
