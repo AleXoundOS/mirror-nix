@@ -2,19 +2,19 @@
 
 module System.Nix.Narinfo where
 
-import Data.Text (Text)
+import Data.Text as T (Text, unpack)
 import Data.YAML as Y
 
 
 data NarInfoYaml = NarInfoYaml
-  { _storePath   :: Text
-  , _url         :: !Text
-  , _compression :: Text
-  , _fileHash    :: !Text
+  { _storePath   :: FilePath
+  , _url         :: !Text -- ^ nar file url compressed or uncompressed
+  , _compression :: Text  -- ^ compression type: bz2, xz, none
+  , _fileHash    :: !Text -- ^ hash of nar file compressed or uncompressed
   , _fileSize    :: Int
-  , _narHash     :: Text
+  , _narHash     :: Text  -- ^ uncompressed nar file hash
   , _narSize     :: Int
-  , _references  :: !Text
+  , _references  :: !Text -- ^ other narinfo names this references (depends)
   , _deriver     :: Text
   , _sig         :: Text
   } deriving Show
@@ -22,7 +22,7 @@ data NarInfoYaml = NarInfoYaml
 
 instance FromYAML NarInfoYaml where
   parseYAML (Mapping _ m) = NarInfoYaml
-    <$> m .: "StorePath"
+    <$> fmap T.unpack (m .: "StorePath")
     <*> m .: "URL"
     <*> m .: "Compression"
     <*> m .: "FileHash"
