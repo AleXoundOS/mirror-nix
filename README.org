@@ -1,21 +1,25 @@
 * nix-mirror
 There is an unsolved issue https://github.com/NixOS/nix/issues/2774 indirectly
 relaated to problems in mirroring nix binary cache due to excessive complexity
-of the `nix` tool for such a simple task. Meanwhile, I address the issue in a
+of the =nix= tool for such a simple task. Meanwhile, I address the issue in a
 separate project.
 
 * goals
 ** nix binary cache mirroring
-- input: file with a list of store paths
-- downloading of `*.narinfo` with corresponding `*.nar.xz` with dependencies for
-  - dependencies are read from `*.narinfo` from the field `References`
-- checksumming of the downloaded `*.nar.xz`
+*** input
+- file with a list of store paths
+- file format as of =store-paths= from https://nixos.org/channels/
+*** how
+- downloading of =*.narinfo= with corresponding =*.nar.xz= with dependencies for
+  - dependencies are read from =*.narinfo= from the field =References=
+- checksumming of the downloaded =*.nar.xz=
 - resumable downloads
 - ensure files integrity after checksumming by utilizing btrfs snapshots
   capability
+** all tarballs required for producing store paths with closures
 
 * questions
-- does the mirror process benefit from the `req` package (instead of
-  `http-conduit`)?
+- does the mirror process really benefit from the =req= package (instead of
+  =http-conduit=)?
   * advantages: automatic retries
-  * disadvantage: `req` brings twice more dependencies
+  * disadvantage: =req= brings twice more dependencies

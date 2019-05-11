@@ -23,34 +23,43 @@ dependencies:
 
 library:
   source-dirs: src
+  # exposed-modules:
+  #   - abc
   dependencies:
-  - req
+    - HsYAML
+    - bytestring
+    - cryptohash-sha256
+    - req
+    - text
+    - vector
 
 executables:
   nix-mirror-exe:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     dependencies:
-    - nix-mirror
-    - optparse-applicative
+      - nix-mirror
+      - optparse-applicative
 
 tests:
   nix-mirror-test:
     main:                Test.hs
     source-dirs:         test
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
     dependencies:
-    - nix-mirror
-    - req
-    - data-default-class
-    - conduit
-    - req-conduit
-    - http-client
-    - http-types
+      - nix-mirror
+      - req
+      - data-default-class
+      - conduit
+      - req-conduit
+      - http-client
+      - http-types
+      - text
+      - bytestring
