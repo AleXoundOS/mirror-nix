@@ -27,8 +27,8 @@ instance FromYAML NarInfo where
   parseYAML (Mapping _ m) = NarInfo
     <$> fmap T.unpack (m .: "StorePath")
     <*> m .: "URL"
-    <*> (mkNarCompression =<< m .: "Compression")
-    <*> (mkFileHash =<< m .: "FileHash")
+    <*> (parseNarCompression =<< m .: "Compression")
+    <*> (parseFileHash =<< m .: "FileHash")
     <*> m .: "FileSize"
     <*> m .: "NarHash"
     <*> m .: "NarSize"
@@ -37,12 +37,12 @@ instance FromYAML NarInfo where
     <*> m .: "Sig"
   parseYAML _ = fail "given bytestring does not begin with yaml map!"
 
-mkNarCompression :: Monad m => Text -> m NarCompressionType
-mkNarCompression "xz" = pure CompXz
+parseNarCompression :: Monad m => Text -> m NarCompressionType
+parseNarCompression "xz" = pure CompXz
 -- If not using `fail` then what? `empty` does not include a custom message.
-mkNarCompression _ = fail "`Compression` type read from Narinfo is not `xz`!"
+parseNarCompression _ = fail "`Compression` type read from Narinfo is not `xz`!"
 
-mkFileHash :: Monad m => Text -> m Text
-mkFileHash t = case T.split (== ':') t of
-                 ["sha256", base32hash] -> pure base32hash
-                 _ -> fail "sha256 `FileHash` cannot be parsed!"
+parseFileHash :: Monad m => Text -> m Text
+parseFileHash t = case T.split (== ':') t of
+                    ["sha256", base32hash] -> pure base32hash
+                    _ -> fail "sha256 `FileHash` cannot be parsed!"
