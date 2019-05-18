@@ -25,7 +25,7 @@ issue in a separate project.
   capability
 
 ** all tarballs required for producing store paths with closures
-- learn how to acomplish this from:
+- learn how to accomplish this from:
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/find-tarballs.nix
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/copy-tarballs.pl
 
