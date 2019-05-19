@@ -32,6 +32,7 @@ library:
     - conduit
     - cryptohash-sha256
     - data-default-class
+    - directory
     - http-client
     - http-types
     - req
@@ -63,8 +64,8 @@ tests:
     dependencies:
       - nix-mirror
       - HsYAML
-      - tasty
-      - tasty-hunit
       - bytestring
       - req
+      - tasty
+      - tasty-hunit
       - text

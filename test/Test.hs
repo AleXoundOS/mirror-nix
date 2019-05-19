@@ -52,17 +52,6 @@ caseParseNarInfo :: FilePath -> String -> (b -> Bool) -> (B.ByteString -> b)
 caseParseNarInfo filepath msg cond func =
   (cond . func <$> B.readFile filepath) @? msg
 
-testStorePaths :: IO ()
-testStorePaths = do
-  ss <- readFile "test-data/store-paths"
-  print $ allNarsUrlsOfStorePaths $ lines ss
-  return ()
-
-allNarsUrlsOfStorePaths :: [FilePath] -> [Url 'Https]
-allNarsUrlsOfStorePaths = undefined
-  -- where
-  --   oneNarRefs :: NarInfoYaml -> 
-
 dlTest :: IO ()
 dlTest =
   print =<<
