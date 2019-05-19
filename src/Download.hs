@@ -7,7 +7,6 @@ import Network.HTTP.Req
 import Network.HTTP.Req.Conduit (responseBodySource)
 import Network.HTTP.Client (responseStatus, HttpExceptionContent(..))
 import Network.HTTP.Types.Status (ok200)
-import Data.Default.Class (def)
 import Conduit ((.|), runConduitRes, sinkFileCautious)
 import Control.Exception (try)
 import qualified Data.ByteString.Lazy as B
@@ -23,7 +22,7 @@ defHost = https "cache.nixos.org"
 downloadToFs :: String -> FilePath -> IO (Either HttpException B.ByteString)
 downloadToFs urlpath filepath = exposeFile =<< checkExcept <$> tryStreamDownload
   where
-    config = def {httpConfigCheckResponse = checkResponse}
+    config = defaultHttpConfig {httpConfigCheckResponse = checkResponse}
     tryStreamDownload = try $ runReq config
       $ reqBr GET (defHost /~ urlpath) NoReqBody mempty $ \r ->
       runConduitRes $ responseBodySource r .| sinkFileCautious filepath

@@ -62,6 +62,9 @@ tests:
       - -with-rtsopts=-N
     dependencies:
       - nix-mirror
+      - HsYAML
+      - tasty
+      - tasty-hunit
       - bytestring
       - req
       - text
