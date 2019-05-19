@@ -10,6 +10,8 @@ import Network.HTTP.Types.Status (ok200)
 import Conduit ((.|), runConduitRes, sinkFileCautious)
 import Control.Exception (try)
 import qualified Data.ByteString.Lazy as B
+import Data.Text (Text)
+import qualified Data.Text as T
 
 
 defHost :: Url 'Https
@@ -19,12 +21,13 @@ defHost = https "cache.nixos.org"
 -- | Downloads a file and writes to file system in a streaming fashion (in
 -- constant memory). Http exceptions are treated as `Left`. File write
 -- exceptions are not caught.
-downloadToFs :: String -> FilePath -> IO (Either HttpException B.ByteString)
-downloadToFs urlpath filepath = exposeFile =<< checkExcept <$> tryStreamDownload
+downloadToFs :: Text -> FilePath -> IO (Either HttpException B.ByteString)
+downloadToFs urlEndPoint path = exposeFile =<< checkExcept <$> tryStreamDownload
   where
     config = defaultHttpConfig {httpConfigCheckResponse = checkResponse}
+    filepath = path ++ "/" ++ T.unpack urlEndPoint
     tryStreamDownload = try $ runReq config
-      $ reqBr GET (defHost /~ urlpath) NoReqBody mempty $ \r ->
+      $ reqBr GET (defHost /: urlEndPoint) NoReqBody mempty $ \r ->
       runConduitRes $ responseBodySource r .| sinkFileCautious filepath
     checkResponse _ resp bs =
       if responseStatus resp == ok200
