@@ -32,8 +32,8 @@ defHost = https "cache.nixos.org"
 -- defHost = https "httpbin.org"
 
 -- | Downloads a file, checks and writes to a file system. Actually download is
--- a stream of http body to a temporary file; once check is positive, file is
--- renamed to requested name.
+-- a stream of http body to a temporary file. If the check is positive, the
+-- temporary file is renamed to the url endpoint.
 downloadCheckAndSave :: UrlEndpoint -> FilePath -> (B.ByteString -> Bool)
                      -> IO (Either DownloadError B.ByteString)
 downloadCheckAndSave urlEndPoint path check = withTempFile path template
