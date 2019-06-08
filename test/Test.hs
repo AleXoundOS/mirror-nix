@@ -23,7 +23,7 @@ narInfoParsing :: TestTree
 narInfoParsing = testCase "NarInfo parsing" $ do
   bs <- B.readFile "test-data/003jhgnff2dwnz4j23wsqhzx9mdbxrqx.narinfo"
   assertEqual "parse correct NarInfo YAML"
-    (Right E.correctNarInfoYAML) (Y.decode1 bs :: Either String NarInfo)
+    (Right E.correctNarInfoYAML) (Y.decode1 bs)
   caseParseNarInfo
     "test-data/003jhgnff2dwnz4j23wsqhzx9mdbxrqx-bad1.narinfo"
     "false parse of bad NarInfo YAML"
@@ -51,9 +51,3 @@ caseParseNarInfo :: FilePath -> String -> (b -> Bool) -> (B.ByteString -> b)
                  -> Assertion
 caseParseNarInfo filepath msg cond func =
   (cond . func <$> B.readFile filepath) @? msg
-
-dlTest :: IO ()
-dlTest =
-  print =<<
-  downloadToFs "nar/1wf20f50458zf9x3dvrhyd04hzn7m71qg24aq1jsv01cvnb692a6.nar.xz"
-               "testFile.raw"
