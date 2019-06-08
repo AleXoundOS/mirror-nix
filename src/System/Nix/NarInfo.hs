@@ -12,7 +12,7 @@ data NarInfo = NarInfo
   { _storeHash   :: StoreHash
   , _url         :: !Text  -- ^ nar file url compressed or uncompressed
   , _compression :: !NarCompressionType -- ^ compression type: bz2, xz, none
-  , _fileHash    :: !Text  -- ^ hash of nar file compressed or uncompressed
+  , _fileHash    :: !NarHash  -- ^ sha256 of nar file compressed or uncompressed
   , _fileSize    :: Int
   , _narHash     :: Text   -- ^ uncompressed nar file hash
   , _narSize     :: Int
@@ -23,13 +23,14 @@ data NarInfo = NarInfo
 
 type StoreName = Text
 type StoreHash = Text
+type NarHash = Text
 
 -- | Types of compression supported for NAR archives.
 data NarCompressionType = CompBz2 | CompXz | CompNone
   deriving (Eq, Show)
 
 instance FromYAML NarInfo where
-  parseYAML (Mapping _ m) = NarInfo
+  parseYAML (Mapping _ m) = validateNarInfo =<< NarInfo
     <$> (parseStorePath =<< m .: "StorePath")
     <*> m .: "URL"
     <*> (parseNarComp   =<< m .: "Compression")
@@ -43,6 +44,15 @@ instance FromYAML NarInfo where
   parseYAML x =
     fail $ "NarInfo YAML parsing Error! \
            \Given ByteString does not begin with YAML map:\n" ++ show x
+
+validateNarInfo :: Monad m => NarInfo -> m NarInfo
+validateNarInfo ni =
+  case _references ni of
+    (r:_) ->
+      if r == _storeHash ni
+      then return ni
+      else failWith "References head does not equal to the current StorePath" r
+    _ -> return ni
 
 parseNarComp :: Monad m => Text -> m NarCompressionType
 parseNarComp "xz" = pure CompXz
