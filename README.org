@@ -32,5 +32,5 @@ issue in a separate project.
 * questions
 - does the mirror process really benefit from the =req= package (instead of
   =http-conduit=)?
-  * advantages: automatic retries
+  * advantages: automatic retries, sharing the same connection across requests?
   * disadvantage: =req= brings twice more dependencies

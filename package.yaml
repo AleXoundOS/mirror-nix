@@ -37,6 +37,7 @@ library:
     - http-types
     - req
     - req-conduit
+    - safe-exceptions
     - temporary
     - text
     - vector
