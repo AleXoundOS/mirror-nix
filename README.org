@@ -8,6 +8,9 @@ related to the problems in mirroring nix binary cache due to excessive
 complexity of the =nix= tool for such a simple task. Meanwhile, I address the
 issue in a separate project.
 
+The program does not run in constant space as a whole, but for the crucial part
+- file download.
+
 * goals
 ** nix binary cache mirroring
 *** input
