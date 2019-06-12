@@ -15,6 +15,7 @@ import System.IO (hClose)
 import System.IO.Temp (withTempFile)
 import Conduit
 import qualified Crypto.Hash.SHA256 as SHA256
+import Control.Monad
 
 import System.Nix.NarInfo
 import qualified System.Nix.Base32 as NixBase32
@@ -44,8 +45,8 @@ downloadWithBodyReader urlEndPoint bodyReader = runReq defaultHttpConfig
 -- the check is positive, the temporary file is renamed to the `UrlEndpoint`.
 -- Returns the downloaded `FilePath`. We assume that if a file is present it has
 -- to be valid.
-downloadCheckAndSave :: UrlEndpoint -> (Text -> Bool) -> IO FilePath
-downloadCheckAndSave urlEndpoint check = do
+downloadCheckAndSave :: (Text -> Bool) -> UrlEndpoint -> IO FilePath
+downloadCheckAndSave check urlEndpoint = do
   exists <- doesFileExist filepath
   if exists
     then return filepath
@@ -75,12 +76,14 @@ mkNarInfoEndpFromStorePath t = mkNarInfoEndpFromStoreHash <$> parseStorePath t
 mkNarInfoEndpFromStoreHash :: StoreHash -> UrlEndpoint
 mkNarInfoEndpFromStoreHash = flip T.append ".narinfo"
 
-test3 :: IO [UrlEndpoint]
+test3 :: IO [NarInfo]
 test3 = do
   storePathsLines <- T.lines <$> T.readFile "test-data/store-paths_"
   runConduit
     $ yieldMany storePathsLines
     .| mapMC (fmap mkNarInfoEndpFromStoreHash . parseStorePath)
+    .| mapMC (downloadCheckAndSave (const True))
+    .| mapMC ((either error return =<<) . readNarFile) -- lol?
     .| sinkList
 
 readStoreNames :: FilePath -> IO (Maybe [StoreName])

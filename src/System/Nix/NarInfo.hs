@@ -6,6 +6,7 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Data.YAML as Y
 import qualified Data.Char as C
+import qualified Data.ByteString as B (readFile)
 
 
 data NarInfo = NarInfo
@@ -46,13 +47,7 @@ instance FromYAML NarInfo where
            \Given ByteString does not begin with YAML map:\n" ++ show x
 
 validateNarInfo :: Monad m => NarInfo -> m NarInfo
-validateNarInfo ni =
-  case _references ni of
-    (r:_) ->
-      if r == _storeHash ni
-      then return ni
-      else failWith "References head does not equal to the current StorePath" r
-    _ -> return ni
+validateNarInfo = return
 
 parseNarComp :: Monad m => Text -> m NarCompressionType
 parseNarComp "xz" = pure CompXz
@@ -87,6 +82,10 @@ mkStoreHashFromStoreName t = if all ($ base32hash) [not . T.null, isBase32]
     isAlphaNum =
       T.all (`elem` ("+-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                      \_abcdefghijklmnopqrstuvwxyz" :: String))
+
+-- | Read and parse NarInfo directly from file.
+readNarFile :: FilePath -> IO (Either String NarInfo)
+readNarFile = fmap Y.decode1Strict . B.readFile
 
 -- | Parsing error message generation.
 failWith :: Monad m => String -> Text -> m a
