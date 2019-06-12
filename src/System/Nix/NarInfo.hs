@@ -7,6 +7,7 @@ import Data.Text (Text)
 import Data.YAML as Y
 import qualified Data.Char as C
 import qualified Data.ByteString as B (readFile)
+import Data.Functor ((<&>))
 
 
 data NarInfo = NarInfo
@@ -31,7 +32,7 @@ data NarCompressionType = CompBz2 | CompXz | CompNone
   deriving (Eq, Show)
 
 instance FromYAML NarInfo where
-  parseYAML (Mapping _ m) = validateNarInfo =<< NarInfo
+  parseYAML (Mapping _ m) = NarInfo
     <$> (parseStorePath =<< m .: "StorePath")
     <*> m .: "URL"
     <*> (parseNarComp   =<< m .: "Compression")
@@ -42,12 +43,14 @@ instance FromYAML NarInfo where
     <*> (parseRefs      =<< m .:? "References") -- optional
     <*> m .: "Deriver"
     <*> m .: "Sig"
+    <&> fixNarInfo
   parseYAML x =
     fail $ "NarInfo YAML parsing Error! \
            \Given ByteString does not begin with YAML map:\n" ++ show x
 
-validateNarInfo :: Monad m => NarInfo -> m NarInfo
-validateNarInfo = return
+-- Filter out references to itself.
+fixNarInfo :: NarInfo -> NarInfo
+fixNarInfo n = n {_references = filter (/= _storeHash n) $ _references n}
 
 parseNarComp :: Monad m => Text -> m NarCompressionType
 parseNarComp "xz" = pure CompXz
