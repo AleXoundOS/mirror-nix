@@ -39,7 +39,7 @@ instance FromYAML NarInfo where
     <*> m .: "FileSize"
     <*> m .: "NarHash"
     <*> m .: "NarSize"
-    <*> (parseRefs      =<< m .: "References")
+    <*> (parseRefs      =<< m .:? "References") -- optional
     <*> m .: "Deriver"
     <*> m .: "Sig"
   parseYAML x =
@@ -62,8 +62,9 @@ parseStorePath :: Monad m => Text -> m StoreHash
 parseStorePath t =
   maybe (failWith "invalid store path" t) pure $ mkStoreHashFromStorePath t
 
-parseRefs :: Monad m => Text -> m [StoreHash]
-parseRefs t = maybe (failWith "invalid reference in" t) pure mRefHashes
+parseRefs :: Monad m => Maybe Text -> m [StoreHash]
+parseRefs Nothing = return []
+parseRefs (Just t) = maybe (failWith "invalid reference in" t) pure mRefHashes
   where
     mRefHashes = mapM mkStoreHashFromStoreName (T.words t)
 
