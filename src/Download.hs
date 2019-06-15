@@ -15,7 +15,6 @@ import System.IO (hClose)
 import System.IO.Temp (withTempFile)
 import Conduit
 import qualified Crypto.Hash.SHA256 as SHA256
-import Control.Monad
 
 import System.Nix.NarInfo
 import qualified System.Nix.Base32 as NixBase32
@@ -76,32 +75,60 @@ mkNarInfoEndpFromStorePath t = mkNarInfoEndpFromStoreHash <$> parseStorePath t
 mkNarInfoEndpFromStoreHash :: StoreHash -> UrlEndpoint
 mkNarInfoEndpFromStoreHash = flip T.append ".narinfo"
 
-test3 :: IO [NarInfo]
-test3 = do
-  storePathsLines <- T.lines <$> T.readFile "test-data/store-paths_"
+naiveRecurse :: NarInfo -> IO [UrlEndpoint]
+naiveRecurse n = do
+  newFiles <-
+    mapM (downloadCheckAndSave (const True) . mkNarInfoEndpFromStoreHash)
+    (_references n)
+  newNarInfos <- mapM ((eitherToError =<<) . readNarFile) newFiles
+  xs <- concat <$> mapM naiveRecurse newNarInfos
+  return (_url n : xs)
+
+test0 :: IO ()
+test0 = do
+  storePathsLines <- take 1 . T.lines <$> T.readFile "test-data/store-paths"
+  narInfoEndpoints <-
+    mapM (fmap mkNarInfoEndpFromStoreHash . parseStorePath) storePathsLines
+  narInfoFiles <- mapM (downloadCheckAndSave (const True)) narInfoEndpoints
+  narInfos <- mapM ((eitherToError =<<) . readNarFile) narInfoFiles
+  narUrls <- concat <$> mapM naiveRecurse narInfos
+  T.writeFile "nar-urls" $ T.unlines narUrls
+
+test :: IO ()
+test = do
+  storePathsLines <- take 1 . T.lines <$> T.readFile "test-data/store-paths"
   runConduit
     $ yieldMany storePathsLines
+    .| iterMC (\line -> putStr "taking store path: " >> print line)
     .| mapMC (fmap mkNarInfoEndpFromStoreHash . parseStorePath)
     .| mapMC (downloadCheckAndSave (const True))
-    .| mapMC ((either error return =<<) . readNarFile) -- lol?
-    .| sinkList
+    .| mapMC ((eitherToError =<<) . readNarFile) -- lol?
+    .| recurseAllNars
+    .| mapM_C (return . const ())
+    -- .| mapM_C (\hash -> putStr "finished: " >> print hash)
 
-readStoreNames :: FilePath -> IO (Maybe [StoreName])
-readStoreNames fp =
-  traverse mkNarInfoEndpFromStorePath . T.lines <$> T.readFile fp
+eitherToError :: Monad m => Either String b -> m b
+eitherToError = either error return
 
--- narInfoTreeToList :: StoreHash -> IO [StoreHash]
--- narInfoTreeToList = 
-
--- treeToHashList :: NarInfo -> IO (Either DownloadError [NarHash])
--- treeToHashList (NarInfo {_fileHash=h, _references=rs}) = do
---   narInfosIO <- map download $ map mkNarInfoEndpFromStoreHash rs
---   return (Right h : )
---   sequence $
---   (Right h) : (concatMap treeToHashList rs)
---   where
---     download = downloadCheckAndSave "test-results" (const True)
---     downloadReference :: StoreHash -> IO (Either DownloadError B.ByteString)
+recurseAllNars :: MonadIO m => ConduitT NarInfo UrlEndpoint m ()
+recurseAllNars = do
+  mNarInfo <- await
+  case mNarInfo of
+    Nothing -> return () -- the source exhausted
+    Just narInfo -> do
+      -- liftIO $ putStr "recurse: " >> print (_storeHash narInfo)
+      yield $ _url narInfo
+      -- downloading new NarInfos this one references
+      refNarInfoFiles <- liftIO
+        $ mapM (downloadCheckAndSave (const True) . mkNarInfoEndpFromStoreHash)
+        (_references narInfo)
+      -- IO because of treating `Left` as `error`
+      refNarInfos <- liftIO
+        $ mapM ((eitherToError =<<) . readNarFile) refNarInfoFiles
+      -- recursive call for the referenced NarInfos
+      -- yieldMany refNarInfos .| recurseAllNars
+      mapM_ leftover refNarInfos
+      recurseAllNars
 
 -- | A 'Sink' that hashes a stream of 'ByteString'@s@ and
 -- creates a sha256 digest.
