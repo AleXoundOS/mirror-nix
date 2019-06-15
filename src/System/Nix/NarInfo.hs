@@ -14,7 +14,7 @@ data NarInfo = NarInfo
   { _storeHash   :: StoreHash
   , _url         :: !Text  -- ^ nar file url compressed or uncompressed
   , _compression :: !NarCompressionType -- ^ compression type: bz2, xz, none
-  , _fileHash    :: !NarHash  -- ^ sha256 of nar file compressed or uncompressed
+  , _fileHash    :: !FileHash  -- ^ sha256 of nar file compressed or uncompressed
   , _fileSize    :: Int
   , _narHash     :: Text   -- ^ uncompressed nar file hash
   , _narSize     :: Int
@@ -25,7 +25,7 @@ data NarInfo = NarInfo
 
 type StoreName = Text
 type StoreHash = Text
-type NarHash = Text
+type FileHash = Text
 
 -- | Types of compression supported for NAR archives.
 data NarCompressionType = CompBz2 | CompXz | CompNone
@@ -56,7 +56,7 @@ parseNarComp :: Monad m => Text -> m NarCompressionType
 parseNarComp "xz" = pure CompXz
 parseNarComp t = failWith "`Compression` type read from Narinfo is not `xz`" t
 
-parseFileHash :: Monad m => Text -> m Text
+parseFileHash :: Monad m => Text -> m FileHash
 parseFileHash t = case T.split (== ':') t of
                     ["sha256", base32hash] -> pure base32hash
                     _ -> failWith "sha256 `FileHash` cannot be parsed" t
