@@ -11,7 +11,7 @@ import Data.Functor ((<&>))
 
 
 data NarInfo = NarInfo
-  { _storeHash   :: StoreHash
+  { _storeHash   :: !StoreHash
   , _url         :: !Text  -- ^ nar file url compressed or uncompressed
   , _compression :: !NarCompressionType -- ^ compression type: bz2, xz, none
   , _fileHash    :: !FileHash  -- ^ sha256 of nar file compressed or uncompressed

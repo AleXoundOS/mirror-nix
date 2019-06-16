@@ -10,11 +10,13 @@ import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.Text.Encoding as T
 import System.Directory (doesFileExist, renameFile)
 import System.IO (hClose)
 import System.IO.Temp (withTempFile)
 import Conduit
 import qualified Crypto.Hash.SHA256 as SHA256
+import qualified Data.Set as Set
 
 import System.Nix.NarInfo
 import qualified System.Nix.Base32 as NixBase32
@@ -96,39 +98,41 @@ test0 = do
 
 test :: IO ()
 test = do
-  storePathsLines <- take 1 . T.lines <$> T.readFile "test-data/store-paths"
+  storePathsLines <- take 30 . T.lines <$> T.readFile "test-data/store-paths"
   runConduit
     $ yieldMany storePathsLines
     .| iterMC (\line -> putStr "taking store path: " >> print line)
     .| mapMC (fmap mkNarInfoEndpFromStoreHash . parseStorePath)
     .| mapMC (downloadCheckAndSave (const True))
     .| mapMC ((eitherToError =<<) . readNarFile) -- lol?
-    .| recurseAllNars
+    .| recurseAllNars Set.empty
     .| mapM_C (return . const ())
     -- .| mapM_C (\hash -> putStr "finished: " >> print hash)
 
 eitherToError :: Monad m => Either String b -> m b
 eitherToError = either error return
 
-recurseAllNars :: MonadIO m => ConduitT NarInfo UrlEndpoint m ()
-recurseAllNars = do
+recurseAllNars :: MonadIO m => Set.Set ByteString
+               -> ConduitT NarInfo UrlEndpoint m ()
+recurseAllNars hs = do
   mNarInfo <- await
   case mNarInfo of
     Nothing -> return () -- the source exhausted
     Just narInfo -> do
       -- liftIO $ putStr "recurse: " >> print (_storeHash narInfo)
       yield $ _url narInfo
-      -- downloading new NarInfos this one references
+      -- downloading only new NarInfos (missing in HashSet) this one references
       refNarInfoFiles <- liftIO
         $ mapM (downloadCheckAndSave (const True) . mkNarInfoEndpFromStoreHash)
-        (_references narInfo)
+        (filter (not . flip Set.member hs . T.encodeUtf8) $ _references narInfo)
       -- IO because of treating `Left` as `error`
       refNarInfos <- liftIO
         $ mapM ((eitherToError =<<) . readNarFile) refNarInfoFiles
-      -- recursive call for the referenced NarInfos
-      -- yieldMany refNarInfos .| recurseAllNars
+      -- push newly downloaded NarInfos back into stream (looks like a hack)
       mapM_ leftover refNarInfos
-      recurseAllNars
+      -- yieldMany refNarInfos .| recurseAllNars
+      -- recursive call for processing "leftovers" and the rest NarInfo stream
+      recurseAllNars (Set.insert (T.encodeUtf8 $ _storeHash narInfo) hs)
 
 -- | A 'Sink' that hashes a stream of 'ByteString'@s@ and
 -- creates a sha256 digest.

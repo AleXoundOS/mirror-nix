@@ -30,6 +30,7 @@ library:
     - HsYAML
     - bytestring
     - conduit
+    - containers
     - cryptohash-sha256
     - data-default-class
     - directory
