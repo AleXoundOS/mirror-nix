@@ -4,9 +4,8 @@ module System.Nix.NarInfo where
 
 import qualified Data.Text as T
 import Data.Text (Text)
-import Data.YAML as Y
+import Data.Yaml as Y
 import qualified Data.Char as C
-import qualified Data.ByteString as B (readFile)
 import Data.Functor ((<&>))
 
 
@@ -31,20 +30,20 @@ type FileHash = Text
 data NarCompressionType = CompBz2 | CompXz | CompNone
   deriving (Eq, Show)
 
-instance FromYAML NarInfo where
-  parseYAML (Mapping _ m) = NarInfo
-    <$> (parseStorePath =<< m .: "StorePath")
-    <*> m .: "URL"
-    <*> (parseNarComp   =<< m .: "Compression")
-    <*> (parseFileHash  =<< m .: "FileHash")
-    <*> m .: "FileSize"
-    <*> m .: "NarHash"
-    <*> m .: "NarSize"
-    <*> (parseRefs      =<< m .:? "References") -- optional
-    <*> m .: "Deriver"
-    <*> m .: "Sig"
+instance FromJSON NarInfo where
+  parseJSON (Object o) = NarInfo
+    <$> (parseStorePath =<< o .: "StorePath")
+    <*> o .: "URL"
+    <*> (parseNarComp   =<< o .: "Compression")
+    <*> (parseFileHash  =<< o .: "FileHash")
+    <*> o .: "FileSize"
+    <*> o .: "NarHash"
+    <*> o .: "NarSize"
+    <*> (parseRefs      =<< o .:? "References") -- optional
+    <*> o .: "Deriver"
+    <*> o .: "Sig"
     <&> fixNarInfo
-  parseYAML x =
+  parseJSON x =
     fail $ "NarInfo YAML parsing Error! \
            \Given ByteString does not begin with YAML map:\n" ++ show x
 
@@ -88,8 +87,8 @@ mkStoreHashFromStoreName t = if all ($ base32hash) [not . T.null, isBase32]
                      \_abcdefghijklmnopqrstuvwxyz" :: String))
 
 -- | Read and parse NarInfo directly from file.
-readNarFile :: FilePath -> IO (Either String NarInfo)
-readNarFile = fmap Y.decode1Strict . B.readFile
+readNarFile :: FilePath -> IO NarInfo
+readNarFile = decodeFileThrow
 
 -- | Parsing error message generation.
 failWith :: Monad m => String -> Text -> m a

@@ -27,7 +27,6 @@ library:
   source-dirs: src
   exposed: false
   dependencies:
-    - HsYAML
     - bytestring
     - conduit
     - containers
@@ -42,6 +41,7 @@ library:
     - temporary
     - text
     - vector
+    - yaml
 
 executables:
   nix-mirror-exe:

@@ -83,7 +83,7 @@ naiveRecurse n = do
   newFiles <-
     mapM (downloadCheckAndSave (const True) . mkNarInfoEndpFromStoreHash)
     (_references n)
-  newNarInfos <- mapM ((eitherToError =<<) . readNarFile) newFiles
+  newNarInfos <- mapM readNarFile newFiles
   xs <- concat <$> mapM naiveRecurse newNarInfos
   return (_url n : xs)
 
@@ -93,7 +93,7 @@ test0 = do
   narInfoEndpoints <-
     mapM (fmap mkNarInfoEndpFromStoreHash . parseStorePath) storePathsLines
   narInfoFiles <- mapM (downloadCheckAndSave (const True)) narInfoEndpoints
-  narInfos <- mapM ((eitherToError =<<) . readNarFile) narInfoFiles
+  narInfos <- mapM readNarFile narInfoFiles
   narUrls <- concat <$> mapM naiveRecurse narInfos
   T.writeFile "nar-urls" $ T.unlines narUrls
 
@@ -105,7 +105,7 @@ test = do
     .| iterMC (\line -> putStr "taking store path: " >> print line)
     .| mapMC (fmap mkNarInfoEndpFromStoreHash . parseStorePath)
     .| mapMC (downloadCheckAndSave (const True))
-    .| mapMC ((eitherToError =<<) . readNarFile) -- lol?
+    .| mapMC readNarFile
     .| recurseAllNars Set.empty
     .| mapM_C (return . const ())
     -- .| mapM_C (\hash -> putStr "finished: " >> print hash)
@@ -128,7 +128,7 @@ recurseAllNars hs = do
         (filter (not . flip Set.member hs . compactHash) $ _references narInfo)
       -- IO because of treating `Left` as `error`
       refNarInfos <- liftIO
-        $ mapM ((eitherToError =<<) . readNarFile) refNarInfoFiles
+        $ mapM readNarFile refNarInfoFiles
       -- push newly downloaded NarInfos back into stream (looks like a hack)
       mapM_ leftover refNarInfos
       -- yieldMany refNarInfos .| recurseAllNars
