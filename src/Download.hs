@@ -7,6 +7,7 @@ import Network.HTTP.Req
 import Network.HTTP.Req.Conduit (responseBodySource)
 import Network.HTTP.Client (Response, BodyReader)
 import Data.ByteString (ByteString)
+import Data.ByteString.Short (ShortByteString, toShort)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -98,7 +99,7 @@ test0 = do
 
 test :: IO ()
 test = do
-  storePathsLines <- take 30 . T.lines <$> T.readFile "test-data/store-paths"
+  storePathsLines <- take 100 . T.lines <$> T.readFile "test-data/store-paths"
   runConduit
     $ yieldMany storePathsLines
     .| iterMC (\line -> putStr "taking store path: " >> print line)
@@ -112,7 +113,7 @@ test = do
 eitherToError :: Monad m => Either String b -> m b
 eitherToError = either error return
 
-recurseAllNars :: MonadIO m => Set.Set ByteString
+recurseAllNars :: MonadIO m => Set.Set ShortByteString
                -> ConduitT NarInfo UrlEndpoint m ()
 recurseAllNars hs = do
   mNarInfo <- await
@@ -124,7 +125,7 @@ recurseAllNars hs = do
       -- downloading only new NarInfos (missing in HashSet) this one references
       refNarInfoFiles <- liftIO
         $ mapM (downloadCheckAndSave (const True) . mkNarInfoEndpFromStoreHash)
-        (filter (not . flip Set.member hs . T.encodeUtf8) $ _references narInfo)
+        (filter (not . flip Set.member hs . compactHash) $ _references narInfo)
       -- IO because of treating `Left` as `error`
       refNarInfos <- liftIO
         $ mapM ((eitherToError =<<) . readNarFile) refNarInfoFiles
@@ -132,7 +133,9 @@ recurseAllNars hs = do
       mapM_ leftover refNarInfos
       -- yieldMany refNarInfos .| recurseAllNars
       -- recursive call for processing "leftovers" and the rest NarInfo stream
-      recurseAllNars (Set.insert (T.encodeUtf8 $ _storeHash narInfo) hs)
+      recurseAllNars (Set.insert (compactHash $ _storeHash narInfo) hs)
+  where
+    compactHash = toShort . T.encodeUtf8
 
 -- | A 'Sink' that hashes a stream of 'ByteString'@s@ and
 -- creates a sha256 digest.
