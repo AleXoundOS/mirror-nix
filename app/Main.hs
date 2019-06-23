@@ -7,5 +7,4 @@ import Download
 
 
 main :: IO ()
-main = test
--- main = void test0
+main = test0

@@ -7,7 +7,8 @@ import Network.HTTP.Req
 import Network.HTTP.Req.Conduit (responseBodySource)
 import Network.HTTP.Client (Response, BodyReader)
 import Data.ByteString (ByteString)
-import Data.ByteString.Short (ShortByteString, toShort)
+import qualified Data.ByteString.Char8 as B
+import Data.ByteString.Short (ShortByteString, toShort, fromShort)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -18,6 +19,7 @@ import System.IO.Temp (withTempFile)
 import Conduit
 import qualified Crypto.Hash.SHA256 as SHA256
 import qualified Data.Set as Set
+import Control.Monad (foldM)
 
 import System.Nix.NarInfo
 import qualified System.Nix.Base32 as NixBase32
@@ -78,24 +80,38 @@ mkNarInfoEndpFromStorePath t = mkNarInfoEndpFromStoreHash <$> parseStorePath t
 mkNarInfoEndpFromStoreHash :: StoreHash -> UrlEndpoint
 mkNarInfoEndpFromStoreHash = flip T.append ".narinfo"
 
-naiveRecurse :: NarInfo -> IO [UrlEndpoint]
-naiveRecurse n = do
+naiveRecurse :: Set.Set ShortByteString -> NarInfo
+             -> IO ([UrlEndpoint], Set.Set ShortByteString)
+naiveRecurse hs n = do
+  -- downloading only new NarInfos (missing in HashSet) this one references
   newFiles <-
     mapM (downloadCheckAndSave (const True) . mkNarInfoEndpFromStoreHash)
-    (_references n)
+    (filter (not . flip Set.member hs . compactHash) $ _references n)
   newNarInfos <- mapM readNarFile newFiles
-  xs <- concat <$> mapM naiveRecurse newNarInfos
-  return (_url n : xs)
+  (urls, hsNew) <-
+    foldM step ([], Set.insert (compactHash $ _storeHash n) hs) newNarInfos
+  return (_url n : urls, hsNew)
+  where
+    step (acc, hs') nn = do
+      (urls, hsNew) <- naiveRecurse hs' nn
+      return (urls ++ acc, hsNew)
+    compactHash = toShort . T.encodeUtf8
 
 test0 :: IO ()
 test0 = do
-  storePathsLines <- take 1 . T.lines <$> T.readFile "test-data/store-paths"
+  storePathsLines <- take 100 . T.lines <$> T.readFile "test-data/store-paths"
   narInfoEndpoints <-
     mapM (fmap mkNarInfoEndpFromStoreHash . parseStorePath) storePathsLines
   narInfoFiles <- mapM (downloadCheckAndSave (const True)) narInfoEndpoints
   narInfos <- mapM readNarFile narInfoFiles
-  narUrls <- concat <$> mapM naiveRecurse narInfos
+  (narUrls, hs) <- foldM step ([], Set.empty) narInfos
   T.writeFile "nar-urls" $ T.unlines narUrls
+  B.writeFile "nar-urls-set" $ B.unlines $ map fromShort $ Set.toList hs
+  where
+    step (acc, hs) narInfo = do
+      putStr "taking store path: "; print $ _storeHash narInfo
+      (urls, hsNew) <- naiveRecurse hs narInfo
+      return (urls ++ acc, hsNew)
 
 test :: IO ()
 test = do
@@ -109,9 +125,6 @@ test = do
     .| recurseAllNars Set.empty
     .| mapM_C (return . const ())
     -- .| mapM_C (\hash -> putStr "finished: " >> print hash)
-
-eitherToError :: Monad m => Either String b -> m b
-eitherToError = either error return
 
 recurseAllNars :: MonadIO m => Set.Set ShortByteString
                -> ConduitT NarInfo UrlEndpoint m ()
