@@ -98,15 +98,15 @@ naiveRecurse hs n = do
     compactHash = toShort . T.encodeUtf8
 
 test0 :: IO ()
-test0 = do
-  storePathsLines <- take 100 . T.lines <$> T.readFile "test-data/store-paths"
-  narInfoEndpoints <-
-    mapM (fmap mkNarInfoEndpFromStoreHash . parseStorePath) storePathsLines
-  narInfoFiles <- mapM (downloadCheckAndSave (const True)) narInfoEndpoints
-  narInfos <- mapM readNarFile narInfoFiles
-  (narUrls, hs) <- foldM step ([], Set.empty) narInfos
-  T.writeFile "nar-urls" $ T.unlines narUrls
-  B.writeFile "nar-urls-set" $ B.unlines $ map fromShort $ Set.toList hs
+test0 = take 100 . T.lines <$> T.readFile "test-data/store-paths"
+  >>= mapM (fmap mkNarInfoEndpFromStoreHash . parseStorePath)
+  >>= mapM (downloadCheckAndSave (const True))
+  >>= mapM readNarFile
+  >>= foldM step ([], Set.empty)
+  >>= \(narUrls, hs) ->
+        do
+          T.writeFile "nar-urls" (T.unlines narUrls)
+          B.writeFile "nar-urls-set" (B.unlines $ map fromShort $ Set.toList hs)
   where
     step (acc, hs) narInfo = do
       putStr "taking store path: "; print $ _storeHash narInfo
