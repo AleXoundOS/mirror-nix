@@ -8,27 +8,31 @@ related to the problems in mirroring nix binary cache due to excessive
 complexity of the =nix= tool for such a simple task. Meanwhile, I address the
 issue in a separate project.
 
-The program does not run in constant space as a whole, but for the crucial part
-- file download.
+The program is not guaranteed to run in constant space as a whole, but for the
+crucial part
+- file download
 
 * goals
 ** nix binary cache mirroring
 *** input
-- file, containing a list of store paths
+- [ ] file, containing a list of store paths
   - file format as of =store-paths= from https://nixos.org/channels/
 *** how
-- download =narinfo= for every input store-path
-- recursively download =narinfo= for every reference (dependency)
-  - dependencies are read from =narinfo= from the field =References=
-- validate downloaded =*.nar.xz= with checksumming
+- [x] download =narinfo= for every input store-path
+- [x] recursively download =narinfo= for every reference (dependency)
+  - dependencies are read from =narinfo= from the field =References:=
+- [ ] download =*.nar.xz= taken from =URL:= field of each =narinfo=
+- [ ] validate downloaded =*.nar.xz= with checksumming
 
 *** features
-- resumable downloads
-- ensure files integrity after checksumming by utilizing btrfs snapshots
+- [?] resumable downloads
+- [ ] ensure files integrity after checksumming by utilizing btrfs snapshots
   capability
+  - there are some obstacles in btrfs snapshots machinery when manipulated as a
+    non-superuser
 
 ** all tarballs required for producing store paths with closures
-- learn how to accomplish this from:
+- [ ] learn how to accomplish this from:
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/find-tarballs.nix
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/copy-tarballs.pl
 
@@ -36,4 +40,4 @@ The program does not run in constant space as a whole, but for the crucial part
 - does the mirror process really benefit from the =req= package (instead of
   =http-conduit=)?
   * advantages: automatic retries, sharing the same connection across requests?
-  * disadvantage: =req= brings twice more dependencies
+  * disadvantage: =req= brings twice as more dependencies
