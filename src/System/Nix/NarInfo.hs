@@ -6,19 +6,23 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Yaml as Y
 import qualified Data.Char as C
-import Data.Functor ((<&>))
 
+-- Data.Functor from ghc-8.2.2.
+(<&>) :: Functor f => f a -> (a -> b) -> f b
+as <&> f = f <$> as
+
+infixl 1 <&>
 
 data NarInfo = NarInfo
   { _storeHash   :: !StoreHash
   , _url         :: !Text  -- ^ nar file url compressed or uncompressed
   , _compression :: !NarCompressionType -- ^ compression type: bz2, xz, none
-  , _fileHash    :: !FileHash  -- ^ sha256 of nar file compressed or uncompressed
+  , _fileHash    :: !FileHash  -- ^ sha256 of nar file compressed or not
   , _fileSize    :: Int
   , _narHash     :: Text   -- ^ uncompressed nar file hash
   , _narSize     :: Int
   , _references  :: ![StoreHash]  -- ^ store hashes this references (depends)
-  , _deriver     :: Text
+  , _deriver     :: Maybe Text
   , _sig         :: Text
   } deriving (Eq, Show)
 
@@ -40,7 +44,7 @@ instance FromJSON NarInfo where
     <*> o .: "NarHash"
     <*> o .: "NarSize"
     <*> (parseRefs      =<< o .:? "References") -- optional
-    <*> o .: "Deriver"
+    <*> o .:? "Deriver"
     <*> o .: "Sig"
     <&> fixNarInfo
   parseJSON x =
