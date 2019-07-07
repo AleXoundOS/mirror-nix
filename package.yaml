@@ -35,7 +35,7 @@ library:
     - directory
     - http-client
     - http-types
-    - req
+    - req == 2.0.1
     - req-conduit
     - safe-exceptions
     - temporary
@@ -66,9 +66,9 @@ tests:
       - -with-rtsopts=-N
     dependencies:
       - nix-mirror
-      - HsYAML
       - bytestring
       - req
       - tasty
       - tasty-hunit
       - text
+      - yaml
