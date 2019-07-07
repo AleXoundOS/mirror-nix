@@ -31,7 +31,7 @@ crucial part
   - there are some obstacles in btrfs snapshots machinery when manipulated as a
     non-superuser
 
-** all tarballs required for producing store paths with closures
+** mirror all tarballs required for producing store paths with closures
 - [ ] learn how to accomplish this from:
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/find-tarballs.nix
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/copy-tarballs.pl

@@ -1,5 +1,5 @@
 name:                nix-mirror
-version:             0.1.0.0
+version:             0.1.1.0
 github:              "alexoundos/nix-mirror"
 license:             GPL-3
 author:              "Alexander Tomokhov"
@@ -54,12 +54,12 @@ executables:
     dependencies:
       - nix-mirror
       - optparse-applicative
+      - text
 
 tests:
   nix-mirror-test:
     main:                Test.hs
     source-dirs:         test
-    # other-modules:       Download
     ghc-options:
       - -threaded
       - -rtsopts
