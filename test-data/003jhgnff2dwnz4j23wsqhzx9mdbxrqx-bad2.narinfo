@@ -1,6 +1,6 @@
 StorePath: /nix/store/003jhgnff2dwnz4j23wsqhzx9mdbxrqx-gcc-7.4.0
 URL: nar/1an2kzz2gcwwchf6d8y2z70j1sy4r3m7wjlq10ia90dbys9ps1f3.nar.xz
-Compression: none
+Compression: zstd
 FileHash: sha256:1an2kzz2gcwwchf6d8y2z70j1sy4r3m7wjlq10ia90dbys9ps1f3
 FileSize: 32541236
 NarHash: sha256:1rq4cpf6adc9lqa5l4qnawpicd0ww36grzxl60a6wj3rjn0jm7d0

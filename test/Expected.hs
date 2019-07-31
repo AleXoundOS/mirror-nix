@@ -34,10 +34,10 @@ rightNarInfoYaml3 :: Either String NarInfo
 rightNarInfoYaml3 = (\x -> x {_deriver = Nothing}) <$> rightNarInfoYaml2
 
 leftNarInfo1 :: Either String NarInfo
-leftNarInfo1 = Left "Aeson exception:\nError in $: NarInfo YAML parsing Error! Invalid reference in:\n003jhgnff2dwnz4j23wsqhzx9mdbxrqx-gcc-7.4.0 37a8nkijf2vy350q3lxhjmxwdnpm6lnf-isl-0.17.1 681354n3k44r8z90m35hm8945vsp95h1-glibc-2.27 7mrq5v4nnqfkv1ka7a0kdw9mzvqs5w3c-gmp-6.1.2 9429azblcx1y9apas3azxxd38imcmsy0-mpfr-4.0.2 iiymx8j7nlar3gc2lfkcscvr61fng8s-zlib-1.2.11 l3fbpz66yfjvamy0bi9fjlhwpp57g14y-gcc-7.4.0-lib sr4253np2gz2bpha4gn8gqlmiw604155-glibc-2.27-dev zx64bk34mqmgfrkbx6ls4hzzxzckah49-libmpc-1.1.0"
+leftNarInfo1 = Left "Aeson exception:\nError in $: NarInfo YAML parsing Error! Invalid reference in: 003jhgnff2dwnz4j23wsqhzx9mdbxrqx-gcc-7.4.0 37a8nkijf2vy350q3lxhjmxwdnpm6lnf-isl-0.17.1 681354n3k44r8z90m35hm8945vsp95h1-glibc-2.27 7mrq5v4nnqfkv1ka7a0kdw9mzvqs5w3c-gmp-6.1.2 9429azblcx1y9apas3azxxd38imcmsy0-mpfr-4.0.2 iiymx8j7nlar3gc2lfkcscvr61fng8s-zlib-1.2.11 l3fbpz66yfjvamy0bi9fjlhwpp57g14y-gcc-7.4.0-lib sr4253np2gz2bpha4gn8gqlmiw604155-glibc-2.27-dev zx64bk34mqmgfrkbx6ls4hzzxzckah49-libmpc-1.1.0"
 
 leftNarInfo2 :: Either String NarInfo
-leftNarInfo2 = Left "Aeson exception:\nError in $: NarInfo YAML parsing Error! `Compression` type read from Narinfo is not `xz`:\nnone"
+leftNarInfo2 = Left "Aeson exception:\nError in $: NarInfo YAML parsing Error! Unexpected `Compression` type read from Narinfo: zstd"
 
 leftNarInfo3 :: Either String NarInfo
-leftNarInfo3 = Left "Aeson exception:\nError in $: NarInfo YAML parsing Error! Invalid store path:\n/nix/storage/003jhgnff2dwnz4j23wsqhzx9mdbxrqx-gcc-7.4.0"
+leftNarInfo3 = Left "Aeson exception:\nError in $: NarInfo YAML parsing Error! Invalid store path: /nix/storage/003jhgnff2dwnz4j23wsqhzx9mdbxrqx-gcc-7.4.0"

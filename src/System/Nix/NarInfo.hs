@@ -57,7 +57,9 @@ fixNarInfo n = n {_references = filter (/= _storeHash n) $ _references n}
 
 parseNarComp :: Monad m => Text -> m NarCompressionType
 parseNarComp "xz" = pure CompXz
-parseNarComp t = failWith "`Compression` type read from Narinfo is not `xz`" t
+parseNarComp "bzip2" = pure CompBz2
+parseNarComp "none" = pure CompNone
+parseNarComp t = failWith "Unexpected `Compression` type read from Narinfo" t
 
 parseFileHash :: Monad m => Text -> m FileHash
 parseFileHash t = case T.split (== ':') t of
@@ -98,7 +100,7 @@ readNarFile = decodeFileThrow
 failWith :: Monad m => String -> Text -> m a
 failWith desc tSrc =
 -- If not using `fail` then what? `empty` does not include a custom message.
-  fail $ "NarInfo YAML parsing Error! " ++ sentence ++ ":\n" ++ T.unpack tSrc
+  fail $ "NarInfo YAML parsing Error! " ++ sentence ++ ": " ++ T.unpack tSrc
   where
     sentence = case desc of
                  (char:rest) -> C.toUpper char : rest
