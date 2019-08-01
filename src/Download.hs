@@ -39,9 +39,12 @@ defHost = https "cache.nixos.org"
 defPath :: FilePath
 defPath = "test-results"
 
+myRespTimeout :: Option scheme
+myRespTimeout = responseTimeout $ 60 * 1000000 -- 60 seconds
+
 downloadWithBodyReader :: UrlEndpoint -> (Response BodyReader -> IO a) -> IO a
 downloadWithBodyReader urlEndPoint bodyReader = runReq defaultHttpConfig
-  $ reqBr GET (defHost /: urlEndPoint) NoReqBody mempty bodyReader
+  $ reqBr GET (defHost /: urlEndPoint) NoReqBody myRespTimeout bodyReader
 
 -- | Downloads a file if it hasn't been found in FS, checks and writes to a file
 -- system. Actually download is a stream of http body to a temporary file. If
