@@ -1,16 +1,23 @@
-work in progress
-
----------
-
 * nix-mirror
 There is an unsolved issue https://github.com/NixOS/nix/issues/2774 indirectly
 related to the problems in mirroring nix binary cache due to excessive
-complexity of the =nix= tool for such a simple task. Meanwhile, I address the
-issue in a separate project.
+complexity of the =nix= tool for such a simple task. Meanwhile, I started to
+address the issue in a separate project.
+
+The project not only aimed at binary cache, but also to provide a completely
+offline operation for NixOS, thus downloading and serving nix fixed outputs
+(i.e. tarballs and other sources).
+
+Currently, the project contains:
+- a program which downloads a binary cache for the given store-paths
+- [[mirror all fixed outputs needed for a completely offline NixOS operation][notes about getting fixed outputs]] in this README
 
 The program is not guaranteed to run in constant space as a whole, but for the
-crucial part
-- file download
+crucial part - file download. The download mechanics do not seem to be
+deterministic, based on narinfo metainformation for references (dependencies of
+store-paths), not nixpkgs. But at least the initial goal (solving [[https://github.com/NixOS/nix/issues/2774][the issue]] for
+me) seems to be met (the result needs to be tested in a real offline
+environment).
 
 * goals
 ** nix binary cache mirroring
@@ -45,22 +52,53 @@ crucial part
 *** serve
 With nginx. Nix integration is not investigated yet.
 
-** mirror all tarballs needed for a completely offline NixOS operation
-*** resources
+** mirror all fixed outputs needed for a completely offline NixOS operation
+*** resources I used to get into this
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/find-tarballs.nix
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/copy-tarballs.pl
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/all-tarballs.nix
-  - https://github.com/NixOS/nixpkgs/blob/master/pkgs/top-level/make-tarball.nix
   - http://web.archive.org/web/20160322151426/https://nixos.org/wiki/Download_all_sources
   - https://github.com/bjornfor/nixpkgs/blob/find-all-sources/maintainers/scripts/all-sources.nix
-    - It seems that all previous means omit other sources than those, specified
-      with `fetchUrl`. So, at least (some?) github sources are missing. Maybe
-      hackage too? Dunno. This one tries to overcome the problem. Untested.
-*** attempts
-#+BEGIN_EXAMPLE shell
-nix-instantiate -I. --readonly-mode --eval --strict --show-trace ./maintainers/scripts/find-tarballs.nix --arg expr 'import ./maintainers/scripts/all-tarballs.nix'
-#+END_EXAMPLE
-After using ~8 GiB RAM returns some list. Did not investigate further.
+  - https://gist.github.com/LnL7/cb4cd501695536d2d4c467d9546eaf4b
+  - https://github.com/NixOS/nixpkgs/blob/master/pkgs/top-level/make-tarball.nix
+*** supposed methods
+**** instantiate [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/find-tarballs.nix][find-tarballs.nix]] with [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/all-tarballs.nix][all-tarballs.nix]] as an argument
+     #+BEGIN_EXAMPLE shell
+     $ nix-instantiate --readonly-mode --eval --strict --json ./maintainers/scripts/find-tarballs.nix --arg expr 'import ./maintainers/scripts/all-tarballs.nix'
+     #+END_EXAMPLE
+     - Produces a json array, each element of which contains: =name=, =hash=,
+       original =url=, =hash= type (=sha256=, =sha1=, =sha512=, etc).
+     - The way [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/copy-tarballs.pl][copy-tarballs.pl]] does.
+     - Omits many sources, at least fetchgit. The produced array is a subset of
+       what [[instantiate all-sources.nix with all-tarballs.nix as an argument][all-sources.nix]] produces (if we could get name, hash, url, type from
+       derivations).
+     - Uses a ton (~8 GiB) of RAM.
+**** instantiate [[https://github.com/bjornfor/nixpkgs/blob/find-all-sources/maintainers/scripts/all-sources.nix][all-sources.nix]] with [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/all-tarballs.nix][all-tarballs.nix]] as an argument
+     [[https://github.com/bjornfor/nixpkgs/blob/find-all-sources/maintainers/scripts/all-sources.nix][all-sources.nix]] is put into ./maintainers/scripts.
+     #+BEGIN_EXAMPLE shell
+     $ nix-instantiate --readonly-mode --eval --strict --json ./maintainers/scripts/all-sources.nix --arg expr 'import ./maintainers/scripts/all-tarballs.nix'
+     #+END_EXAMPLE
+     - Produces a json array of fixed outputs. A superset of [[instantiate find-tarballs.nix with all-tarballs.nix as an argument][find-tarballs.nix]]
+       produces if converted to fixed outputs.
+     - Are there any other missing fixed outputs?
+     - How to download the files knowing only their fixed output name?
+       =nix-store -r=?
+     - Contains a few duplicates.
+     - Uses a ton (~8 GiB) of RAM.
+**** instantiate [[https://gist.github.com/LnL7/cb4cd501695536d2d4c467d9546eaf4b][find-fixed-outputs.nix]]
+     [[https://gist.github.com/LnL7/cb4cd501695536d2d4c467d9546eaf4b][find-fixed-outputs.nix]] is put into ./maintainers/scripts.
+     #+BEGIN_EXAMPLE shell
+     $ nix-instantiate --eval --strict --json ./maintainers/scripts/find-fixed-outputs.nix --arg expr 'import ./maintainers/scripts/all-tarballs.nix'
+     #+END_EXAMPLE
+     - Produces a json array, each element of which contains: =name=, =hash=,
+       =drv= (derivation name), hash =type=, =mode= (has two posssible values:
+       =flat=, =recursive=).
+     - Gives the most number of items out of the supposed methods. Confirmed
+       that this is a superset of all-sources method! Great thanks to the
+       creator!
+     - Compared to all-sources method, allows to easily download using either
+       =hash=, either =drv= for =store -r=.
+     - Uses a ton (~8 GiB) of RAM.
 
 * build instructions
 #+BEGIN_EXAMPLE shell
@@ -112,9 +150,11 @@ Git revision: 31d476b87972d8f97d67fd65e74c477b23227434.
   internet).
 
 * questions
-- does the mirror process really benefit from the =req= package (instead of
+- Does the mirror process really benefit from the =req= package (instead of
   =http-conduit=)?
   * advantages: automatic retries, sharing the same connection across requests?
   * disadvantage: =req= brings twice as more dependencies
-- how to get store-paths?
-  - https://gist.github.com/LnL7/cb4cd501695536d2d4c467d9546eaf4b ?
+- Dow to generate store-paths list for a specific nixpkgs commit?
+- All supposed methods for downloading fixed outputs:
+  - use [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/all-tarballs.nix][all-tarballs.nix]] as an argument, is it the right way?
+  - use a ton (~8 GiB) of RAM, have a try for hnix?
