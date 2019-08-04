@@ -14,24 +14,25 @@ crucial part
 
 * goals
 ** nix binary cache mirroring
-*** input
+*** download
+**** input
 - [x] file, containing a list of store paths
   - file format as of =store-paths= from https://nixos.org/channels/
-*** how
+**** how
 - [x] download =narinfo= for every input store-path
 - [x] recursively download =narinfo= for every reference (dependency)
   - dependencies are read from =narinfo= from the field =References:=
 - [x] download =*.nar.xz= taken from =URL:= field of each =narinfo=
 - [x] validate downloaded =*.nar.xz= (with checksum from narinfo)
 
-*** features
+**** features
 - [x] resumable downloads
   - Interrupted download should be (unless I'm mistaken) easily resumed. Since
     all partially downloaded files are stored with a temporary filename and only
     fully downloaded and valid (correct checksum) files obtain the final
     filename.
 
-    So, either file download results in a genuine file, either not. Thus
+    So, either the file download results in a genuine file, either not. Thus,
     individual files download is not resumed, but already downloaded valid files
     are not redownloaded (nor contents being rechecked).
 
@@ -39,16 +40,27 @@ crucial part
     very time consuming even on NanoPi Neo2).
 
 - [ ] ensure saved files integrity later by utilizing btrfs snapshots capability
-  - Some obstacles are expected (when implementing) in btrfs snapshots machinery
+  - Some obstacles are expected in btrfs snapshots machinery
     when manipulated as a non-superuser.
+*** serve
+With nginx. Nix integration is not investigated yet.
 
 ** mirror all tarballs needed for a completely offline NixOS operation
-- resources:
+*** resources
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/find-tarballs.nix
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/copy-tarballs.pl
   - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/all-tarballs.nix
   - https://github.com/NixOS/nixpkgs/blob/master/pkgs/top-level/make-tarball.nix
   - http://web.archive.org/web/20160322151426/https://nixos.org/wiki/Download_all_sources
+  - https://github.com/bjornfor/nixpkgs/blob/find-all-sources/maintainers/scripts/all-sources.nix
+    - It seems that all previous means omit other sources than those, specified
+      with `fetchUrl`. So, at least (some?) github sources are missing. Maybe
+      hackage too? Dunno. This one tries to overcome the problem. Untested.
+*** attempts
+#+BEGIN_EXAMPLE shell
+nix-instantiate -I. --readonly-mode --eval --strict --show-trace ./maintainers/scripts/find-tarballs.nix --arg expr 'import ./maintainers/scripts/all-tarballs.nix'
+#+END_EXAMPLE
+After using ~8 GiB RAM returns some list. Did not investigate further.
 
 * build instructions
 #+BEGIN_EXAMPLE shell
@@ -69,10 +81,11 @@ dependency build on the real hardware - too few RAM. Based on my experience, it
 needs at least 4 GiB (rpi3 has only 1 GiB).
 
 So, the solution is to build under qemu virtual machine. It works fine, except
-the limit of 3 GiB RAM caused by broken AHCI emulation. When all the
-dependencies are built, you can copy =~/.stack= contents to the real hardware
-aarch64 machine. So, you are able to build just the source code of the project.
-But still it takes almost an hour on NanoPi Neo2 with 512 MiB RAM.
+the limit of 3 GiB RAM caused by broken AHCI emulation. It takes approximately
+2 days to build from scratch. All the built dependencies can be copied from
+=~/.stack= to the real hardware aarch64 machine. So, you are able to build just
+the source code of the project. But still it takes almost an hour on NanoPi Neo2
+with 512 MiB RAM.
 
 ** downloaded binary cache stats
 *** nixos-19.03.173202.31d476b8797
@@ -82,7 +95,7 @@ Git revision: 31d476b87972d8f97d67fd65e74c477b23227434.
     https://releases.nixos.org/nixos/19.03/nixos-19.03.173202.31d476b8797
 - narinfo count: 38634
   - I haven't checked yet whether these are really all narinfos available for
-    the this specific nixpkgs revision
+    this specific nixpkgs revision
 - nar count: 38093
   - lower than narinfo count because of duplicates, i.e. several
     narinfos point to the same nar file
