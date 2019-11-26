@@ -1,10 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module System.Nix.NarInfo where
+module System.Nix.NarInfo
+  ( NarInfo(..), NarCompressionType(..), StoreName, StoreHash, FileHash
+  , mkStoreHashFromStorePath, mkStoreHashFromStoreName, readNarFile
+  , parseStorePath, mkNarInfoEndpFromStoreHash, mkNarInfoEndpFromStorePath
+  , decodeThrow
+  ) where
 
 import qualified Data.Text as T
 import Data.Text (Text)
-import Data.Yaml as Y
+import Data.Yaml
 import qualified Data.Char as C
 
 -- Data.Functor from ghc-8.2.2.
@@ -15,6 +20,7 @@ infixl 1 <&>
 
 data NarInfo = NarInfo
   { _storeHash   :: !StoreHash
+  -- TODO convert url type to `ByteString`?
   , _url         :: !Text  -- ^ nar file url compressed or uncompressed
   , _compression :: !NarCompressionType -- ^ compression type: bz2, xz, none
   , _fileHash    :: !FileHash  -- ^ sha256 of nar file compressed or not
@@ -29,6 +35,7 @@ data NarInfo = NarInfo
 type StoreName = Text
 type StoreHash = Text
 type FileHash = Text
+type UrlEndpoint = Text
 
 -- | Types of compression supported for NAR archives.
 data NarCompressionType = CompBz2 | CompXz | CompNone
@@ -82,15 +89,11 @@ mkStoreHashFromStorePath t =
 
 mkStoreHashFromStoreName :: StoreName -> Maybe StoreHash
 mkStoreHashFromStoreName t = if all ($ base32hash) [not . T.null, isBase32]
-                                && all ($ rest) [not . T.null, isAlphaNum]
                              then Just base32hash
                              else Nothing
   where
-    (base32hash, rest) = T.splitAt 32 t
+    (base32hash, _rest) = T.splitAt 32 t
     isBase32 = T.all (`elem` ("0123456789abcdfghijklmnpqrsvwxyz" :: String))
-    isAlphaNum =
-      T.all (`elem` ("+-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-                     \_abcdefghijklmnopqrstuvwxyz" :: String))
 
 -- | Read and parse NarInfo directly from file.
 readNarFile :: FilePath -> IO NarInfo
@@ -105,3 +108,11 @@ failWith desc tSrc =
     sentence = case desc of
                  (char:rest) -> C.toUpper char : rest
                  _ -> ""
+
+-- | Make `UrlEndpoint` for NarInfo from StoreHash (Reference).
+mkNarInfoEndpFromStoreHash :: StoreHash -> UrlEndpoint
+mkNarInfoEndpFromStoreHash = flip T.append ".narinfo"
+
+-- | Make `UrlEndpoint` for NarInfo from store-path.
+mkNarInfoEndpFromStorePath :: Monad m => Text -> m UrlEndpoint
+mkNarInfoEndpFromStorePath t = mkNarInfoEndpFromStoreHash <$> parseStorePath t

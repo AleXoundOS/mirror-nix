@@ -1,38 +1,71 @@
-* nix-mirror
-There is an unsolved issue https://github.com/NixOS/nix/issues/2774 indirectly
-related to the problems in mirroring nix binary cache due to excessive
-complexity of the =nix= tool for such a simple task. Meanwhile, I started to
-address the issue in a separate project.
+* preface
+Prehistory. There is an unsolved issue https://github.com/NixOS/nix/issues/2774
+indirectly related to the problems in mirroring nix /binary cache/ due to
+excessive complexity of the =nix= program for such a simple task. Meanwhile, I
+started to address the issue in a separate project. However, the project is not
+only aimed at /binary cache/, see below.
 
-The project not only aimed at binary cache, but also to provide a completely
-offline operation for NixOS, thus downloading and serving nix fixed outputs
-(i.e. tarballs and other sources).
+--------------------------------------------------------------------------------
+
+Resources here help you to prepare Nix/OS infrastracture for a completely
+offline (without network internet connection) workflow. Thus, download /binary
+cache/ and /fixed outputs/ (i.e. /tarballs/ / sources), serve them in your
+offline LAN and use.
+
+--------------------------------------------------------------------------------
 
 Currently, the project contains:
-- a program which downloads a binary cache for the given store-paths
-- [[mirror all fixed outputs needed for a completely offline NixOS operation][notes about getting fixed outputs]] in this README
+- [[nix-mirror program help][a program which downloads /binary cache/ for the given =store-paths= file and
+  /fixed outputs/]]
+- [[getting fixed output metainformation][accessory tools on getting /fixed outputs/ metainformation, given nixpkgs
+  revision, needed for the program]]
+- [[how to install NixOS when offline using the mirror][instructions on how to install NixOS when offline using the mirror]]
 
-The program is not guaranteed to run in constant space as a whole, but for the
-crucial part - file download. The download mechanics do not seem to be
-deterministic, based on narinfo metainformation for references (dependencies of
-store-paths), not nixpkgs. But at least the initial goal (solving [[https://github.com/NixOS/nix/issues/2774][the issue]] for
-me) seems to be met (the result needs to be tested in a real offline
-environment).
+The program is not guaranteed to run in constant space as a whole but for the
+crucial part -- single file download. The /binary cache/ download mechanics do
+not seem to be deterministic (each step is effectful), based on =narinfo=
+metainformation for references (dependencies of store-paths), not nixpkgs. But
+at least, the initial goal (solving [[https://github.com/NixOS/nix/issues/2774][the issue]] for me) seems to be met.
+
+* table of contents :TOC:noexport:
+- [[#preface][preface]]
+- [[#goals][goals]]
+  - [[#binary-cache-mirroring][binary cache mirroring]]
+    - [[#program-input][program input]]
+    - [[#implementation][implementation]]
+    - [[#features][features]]
+  - [[#fixed-outputs-mirroring][fixed outputs mirroring]]
+- [[#getting-fixed-output-metainformation][getting fixed output metainformation]]
+- [[#how-to-install-nixos-when-offline-using-the-mirror][how to install NixOS when offline using the mirror]]
+- [[#build-instructions][build instructions]]
+- [[#nix-mirror-program-help][nix-mirror program help]]
+- [[#reports][reports]]
+  - [[#aarch64-build][aarch64 build]]
+  - [[#downloaded-binary-cache-stats][downloaded binary cache stats]]
+    - [[#nixos-190317320231d476b8797][nixos-19.03.173202.31d476b8797]]
+- [[#previously-supposed-methods-of-getting-fixed-output-metainformation][previously supposed methods of getting fixed output metainformation]]
+    - [[#instantiate-find-tarballsnix][instantiate find-tarballs.nix]]
+    - [[#instantiate-all-sourcesnix][instantiate all-sources.nix]]
+    - [[#instantiate-find-fixed-outputsnix][instantiate find-fixed-outputs.nix]]
+    - [[#resources-i-used-to-get-into-this][resources I used to get into this]]
+  - [[#serve-in-lan][serve in LAN]]
+- [[#warnings][warnings]]
+- [[#questions][questions]]
+- [[#todo][TODO]]
 
 * goals
-** nix binary cache mirroring
-*** download
-**** input
+** binary cache mirroring
+*** program input
 - [x] file, containing a list of store paths
   - file format as of =store-paths= from https://nixos.org/channels/
-**** how
+*** implementation
 - [x] download =narinfo= for every input store-path
 - [x] recursively download =narinfo= for every reference (dependency)
   - dependencies are read from =narinfo= from the field =References:=
 - [x] download =*.nar.xz= taken from =URL:= field of each =narinfo=
-- [x] validate downloaded =*.nar.xz= (with checksum from narinfo)
+- [x] validate downloaded =*.nar.xz= with checksum from narinfo
 
-**** features
+*** features
 - [x] resumable downloads
   - Interrupted download should be (unless I'm mistaken) easily resumed. Since
     all partially downloaded files are stored with a temporary filename and only
@@ -41,75 +74,143 @@ environment).
 
     So, either the file download results in a genuine file, either not. Thus,
     individual files download is not resumed, but already downloaded valid files
-    are not redownloaded (nor contents being rechecked).
+    are not re-downloaded (nor contents being re-checked).
 
-  - Every time the program is run it traverses the whole narinfo tree (it's not
-    very time consuming even on NanoPi Neo2).
+  - Every time the program is run it traverses the whole narinfo tree but it's
+    not very time consuming even on NanoPi Neo2).
 
-- [ ] ensure saved files integrity later by utilizing btrfs snapshots capability
-  - Some obstacles are expected in btrfs snapshots machinery
-    when manipulated as a non-superuser.
-*** serve
-With nginx. Nix integration is not investigated yet.
+- [ ] ensure saved files integrity later by leveraging btrfs snapshots capability
+  - At least some obstacles are expected in btrfs snapshots machinery when
+    manipulated as a non-superuser.
 
-** mirror all fixed outputs needed for a completely offline NixOS operation
-*** resources I used to get into this
-  - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/find-tarballs.nix
-  - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/copy-tarballs.pl
-  - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/all-tarballs.nix
-  - http://web.archive.org/web/20160322151426/https://nixos.org/wiki/Download_all_sources
-  - https://github.com/bjornfor/nixpkgs/blob/find-all-sources/maintainers/scripts/all-sources.nix
-  - https://gist.github.com/LnL7/cb4cd501695536d2d4c467d9546eaf4b
-  - https://github.com/NixOS/nixpkgs/blob/master/pkgs/top-level/make-tarball.nix
-*** supposed methods
-**** instantiate [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/find-tarballs.nix][find-tarballs.nix]] with [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/all-tarballs.nix][all-tarballs.nix]] as an argument
-     #+BEGIN_EXAMPLE shell
-     $ nix-instantiate --readonly-mode --eval --strict --json ./maintainers/scripts/find-tarballs.nix --arg expr 'import ./maintainers/scripts/all-tarballs.nix'
-     #+END_EXAMPLE
-     - Produces a json array, each element of which contains: =name=, =hash=,
-       original =url=, =hash= type (=sha256=, =sha1=, =sha512=, etc).
-     - The way [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/copy-tarballs.pl][copy-tarballs.pl]] does.
-     - Omits many sources, at least fetchgit. The produced array is a subset of
-       what [[instantiate all-sources.nix with all-tarballs.nix as an argument][all-sources.nix]] produces (if we could get name, hash, url, type from
-       derivations).
-     - Uses a ton (~8 GiB) of RAM.
-**** instantiate [[https://github.com/bjornfor/nixpkgs/blob/find-all-sources/maintainers/scripts/all-sources.nix][all-sources.nix]] with [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/all-tarballs.nix][all-tarballs.nix]] as an argument
-     [[https://github.com/bjornfor/nixpkgs/blob/find-all-sources/maintainers/scripts/all-sources.nix][all-sources.nix]] is put into ./maintainers/scripts.
-     #+BEGIN_EXAMPLE shell
-     $ nix-instantiate --readonly-mode --eval --strict --json ./maintainers/scripts/all-sources.nix --arg expr 'import ./maintainers/scripts/all-tarballs.nix'
-     #+END_EXAMPLE
-     - Produces a json array of fixed outputs. A superset of [[instantiate find-tarballs.nix with all-tarballs.nix as an argument][find-tarballs.nix]]
-       produces if converted to fixed outputs.
-     - Are there any other missing fixed outputs?
-     - How to download the files knowing only their fixed output name?
-       =nix-store -r=?
-     - Contains a few duplicates.
-     - Uses a ton (~8 GiB) of RAM.
-**** instantiate [[https://gist.github.com/LnL7/cb4cd501695536d2d4c467d9546eaf4b][find-fixed-outputs.nix]]
-     [[https://gist.github.com/LnL7/cb4cd501695536d2d4c467d9546eaf4b][find-fixed-outputs.nix]] is put into ./maintainers/scripts.
-     #+BEGIN_EXAMPLE shell
-     $ nix-instantiate --eval --strict --json ./maintainers/scripts/find-fixed-outputs.nix --arg expr 'import ./maintainers/scripts/all-tarballs.nix'
-     #+END_EXAMPLE
-     - Produces a json array, each element of which contains: =name=, =hash=,
-       =drv= (derivation name), hash =type=, =mode= (has two posssible values:
-       =flat=, =recursive=).
-     - Gives the most number of items out of the supposed methods. Confirmed
-       that this is a superset of all-sources method! Great thanks to the
-       creator!
-     - Compared to all-sources method, allows to easily download using either
-       =hash=, either =drv= for =store -r=.
-     - Uses a ton (~8 GiB) of RAM.
+** fixed outputs mirroring
+While binary cache is enough for NixOS installation, now this is the last part,
+I believe, needed for a completely offline NixOS operation.
+
+Currently I come to a guess that there are 2 kinds of /fixed/flat/ sources for
+nix derivations:
+- fixed output /derivations/ (reside in the /binary cache/)
+- fixed output /tarballs/ (http://tarballs.nixos.org/ contains them, but not
+  only them) which relates to "bootstrapping" of the Nix itself and might not be
+  found in the http://cache.nixos.org/.
+
+Following that, mirroring fixed output derivations from http://cache.nixos.org/
+should give everything unless you try to build Nix without Nix. But this can be
+a faulty assumption, needs proof.
+
+So, the goals are:
+- [-] provide [[getting fixed output metainformation][means of getting metainformation]], required to perform a download
+  of all fixed outputs (the download can be performed by a separate program)
+  - [x] derivations
+  - [-] tarballs (see below)
+  - [ ] usable on moderate specs machines (peculiar RAM needs!)
+- [x] downloading program, consuming fixed outputs metainformation as input
+- [ ] fully automatic procedure of mirroring, requiring nixpkgs commit hash only
+  (seems to be truly possible having nix tools onboard, but what about
+  standalone application?)
+
+Currently, if we stick only to fixed output /tarballs/ (as opposed to fixed
+output derivations) we'll be still missing some of them, because the
+find-fixed-outputs.nix expression does not find some of /tarballs/ urls. [[https://github.com/NixOS/nixpkgs/blob/2594aa5917bf29ba8f4499dc661d6562fe736c22/pkgs/data/fonts/unifont/default.nix][Some
+packages]] omit common key set attributes (missing both =url= and =urls=) and use
+manual fetch expressions.
+
+* getting fixed output metainformation
+This project hosts the [[file:find-fixed-outputs.nix][nix expression]] with the helper [[file:gen-fixed-outputs-info-array.sh][script]] for getting the
+mentioned metainformation, required to download both kinds of fixed outputs.
+
+* how to install NixOS when offline using the mirror
+#+BEGIN_EXAMPLE shell
+# at the end this command produces `./result` symbolic link for nixos-install
+$ nix-build -vvv -I nixos-config=/mnt/etc/nixos/configuration.nix '<nixpkgs/nixos>' -A system --option substituters http://$HOST:$PORT/$ENDPOINT
+
+# (for some reason substituters option is still needed here)
+nixos-install --option substituters http://$HOST:$PORT/$ENDPOINT --system ./result
+#+END_EXAMPLE
+
+Set the =HOST=, =PORT=, =ENDPOINT= variables accordingly to yours.
+
+Also, there could be used the following option:
+#+BEGIN_EXAMPLE shell
+--option hashed-mirrors http://$HOST:$PORT/$ENDPOINT_FIXED_OUTPUTS
+#+END_EXAMPLE
+But I'm not sure this is useful for a typical installation.
+# But the way the current program downloads fixed outputs differs from what this
+# options expects.
 
 * build instructions
 #+BEGIN_EXAMPLE shell
 $ stack build
 #+END_EXAMPLE
-It will automatically pick =shell.nix= configuration with pinned nixpkgs for
-Nix. In order to build wihout Nix integration, I guess you'll have to append
-=--no-nix= option to =stack=.
+# It will automatically pick =shell.nix= configuration with pinned nixpkgs for
+# Nix. In order to build wihout Nix integration, I guess you'll have to append
+# =--no-nix= option to =stack=.
+
+* nix-mirror program help
+#+BEGIN_EXAMPLE
+nix-mirror - download nix binary cache and fixed outputs
+
+Usage: nix-mirror [--base-path BASE_PATH] COMMAND
+
+Available options:
+  -h,--help                Show this help text
+  --base-path BASE_PATH    Base path for mirror contents (unimplemented!).
+
+Available commands:
+  binaryCache              Download Nix binary cache given `store-paths` file.
+  fixedOutputs             Download Nix fixed outputs given json array of
+                           derivations.
+#+END_EXAMPLE
+
+#+BEGIN_EXAMPLE
+Usage: nix-mirror binaryCache [--input-help] --store-paths STORE_PATHS
+                              [--conduit-recurse]
+  Download Nix binary cache given `store-paths` file.
+
+Available options:
+  --input-help             Instructions for obtaining `store-paths` input file.
+  --store-paths STORE_PATHS
+                           Path to a "store-paths" file (a list of /nix/store/*
+                           paths).
+  --conduit-recurse        Use `leftover` conduit streaming mechanism for
+                           `NarInfo` recursion.
+  -h,--help                Show this help text
+#+END_EXAMPLE
+
+#+BEGIN_EXAMPLE
+Usage: nix-mirror fixedOutputs [--input-help] --drvs-json DRVS_JSON_FILE
+                               [--dry-run] ([--print-drv] | [--print-hash] |
+                               [--print-mode] | [--print-name] | [--print-path]
+                               | [--print-hash-type] | [--print-urls])
+                               (--derivations | --tarballs)
+  Download Nix fixed outputs given json array of derivations.
+
+Available options:
+  --input-help             Instructions for obtaining fixed output derivations
+                           json input file.
+  --drvs-json DRVS_JSON_FILE
+                           Path to a json file produced with
+                           find-fixed-outputs.nix.
+  --dry-run                Do not actually download. Useful in combination with
+                           --print-*.
+  --print-drv              Print `drv` path (/nix/store/*.drv).
+  --print-hash             Print hashes.
+  --print-mode             Print mode: `flat` or `recursive`.
+  --print-name             Print name of derivations.
+  --print-path             Print store path (/nix/store/*).
+  --print-hash-type        Print hash type, e.g. `sha1`.
+  --print-urls             Print original source urls.
+  --derivations            Download fixed output derivations (from
+                           cache.nixos.org), targeting at /nix/store/.
+  --tarballs               Download the "tarballs" of fixed output derivations,
+                           building up a mirror of tarballs.nixos.org.
+  -h,--help                Show this help text
+#+END_EXAMPLE
 
 * reports
 ** aarch64 build
+This section may be outdated.
+
 Builds and runs successfully under NixOS, but see caveats below.
 
 As for Raspberry Pi 3 / NanoPi Neo2 building the whole project may take a ton
@@ -138,7 +239,7 @@ Git revision: 31d476b87972d8f97d67fd65e74c477b23227434.
   - lower than narinfo count because of duplicates, i.e. several
     narinfos point to the same nar file
 - size
-  - on disk
+  - on disk (ext4):
     - total: 72263 MiB
     - narinfos: 154 MiB
     - nars: 72109 MiB
@@ -146,15 +247,92 @@ Git revision: 31d476b87972d8f97d67fd65e74c477b23227434.
     - total: 72067 MiB
     - narinfos: 36 MiB
     - nars: 72032 MiB
-- approximate time consumed: 30 hours running on NanoPi Neo2 (on my 100 Mbit
-  internet).
+- approximate time consumed: 30 hours running on NanoPi Neo2 on my 100 Mbit
+  internet.
+
+* previously supposed methods of getting fixed output metainformation
+*** instantiate [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/find-tarballs.nix][find-tarballs.nix]]
+     #+BEGIN_EXAMPLE shell
+     $ nix-instantiate --readonly-mode --eval --strict --json ./maintainers/scripts/find-tarballs.nix --arg expr 'import ./maintainers/scripts/all-tarballs.nix'
+     #+END_EXAMPLE
+     - Produces a json array, each element of which contains: =name=, =hash=,
+       original =url=, =hash= type (=sha256=, =sha1=, =sha512=, etc).
+     - The way [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/copy-tarballs.pl][copy-tarballs.pl]] does.
+     - Omits many sources, at least fetchgit. The produced array is a subset of
+       what [[https://github.com/bjornfor/nixpkgs/blob/find-all-sources/maintainers/scripts/all-sources.nix][all-sources.nix]] produces (if we could get name, hash, url, type from
+       derivations).
+     - Uses a ton (~8 GiB) of RAM.
+*** instantiate [[https://github.com/bjornfor/nixpkgs/blob/find-all-sources/maintainers/scripts/all-sources.nix][all-sources.nix]]
+     Assuming [[https://github.com/bjornfor/nixpkgs/blob/find-all-sources/maintainers/scripts/all-sources.nix][all-sources.nix]] is put into ./maintainers/scripts.
+     #+BEGIN_EXAMPLE shell
+     $ nix-instantiate --readonly-mode --eval --strict --json ./maintainers/scripts/all-sources.nix --arg expr 'import ./maintainers/scripts/all-tarballs.nix'
+     #+END_EXAMPLE
+     - Produces a json array of fixed outputs. A superset of [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/find-tarballs.nix][find-tarballs.nix]]
+       produces if converted to fixed outputs.
+     - Are there any other missing fixed outputs?
+     - How to download the files knowing only their fixed output name?
+       =nix-store -r=?
+     - Contains a few duplicates.
+     - Uses a ton (~8 GiB) of RAM.
+     - Fixed outputs are /tarballs/ itself, not having =drv= extension.
+*** instantiate [[https://gist.github.com/LnL7/cb4cd501695536d2d4c467d9546eaf4b][find-fixed-outputs.nix]]
+     Assuming [[https://gist.github.com/LnL7/cb4cd501695536d2d4c467d9546eaf4b][find-fixed-outputs.nix]] is put into ./maintainers/scripts.
+     #+BEGIN_EXAMPLE shell
+     $ nix-instantiate --readonly-mode --eval --strict --json ./maintainers/scripts/find-fixed-outputs.nix --arg expr 'import ./maintainers/scripts/all-tarballs.nix'
+     #+END_EXAMPLE
+     - Produces a json array, each element of which contains: =name=, =hash=,
+       =drv= (derivation name), hash =type=, =mode= (has two posssible values:
+       =flat=, =recursive=).
+     - Gives the most number of items out of the supposed methods. Checked
+       that this is a superset of all-sources method! Great thanks to the
+       author!
+     - Compared to all-sources.nix, allows to easily download using either
+       =hash=, or =drv= for =nix-store -r= -- if you do not want to have
+       downloaded fixed-outputs as a separate entity, but fetch them into your
+       =/nix/store=.
+     - Uses a ton (~8 GiB) of RAM.
+
+Finally, the last method is taken as a current basis for this project.
+
+*** resources I used to get into this
+  - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/find-tarballs.nix
+  - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/copy-tarballs.pl
+  - https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/all-tarballs.nix
+  - http://web.archive.org/web/20160322151426/https://nixos.org/wiki/Download_all_sources
+  - https://github.com/bjornfor/nixpkgs/blob/find-all-sources/maintainers/scripts/all-sources.nix
+  - https://gist.github.com/LnL7/cb4cd501695536d2d4c467d9546eaf4b
+  - https://github.com/NixOS/nixpkgs/blob/master/pkgs/top-level/make-tarball.nix
+
+** serve in LAN
+For example, with nginx. Nix integration is not worked on yet.
+
+* warnings
+Please, do not stress the nixos.org servers with excessive load caused by the
+*nix-mirror* overuse (when not really needed).
+
+The current README is subject to mistakes and factual inaccuracy.
 
 * questions
 - Does the mirror process really benefit from the =req= package (instead of
   =http-conduit=)?
   * advantages: automatic retries, sharing the same connection across requests?
   * disadvantage: =req= brings twice as more dependencies
-- Dow to generate store-paths list for a specific nixpkgs commit?
+- How to generate store-paths list for a specific nixpkgs commit?
 - All supposed methods for downloading fixed outputs:
   - use [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/all-tarballs.nix][all-tarballs.nix]] as an argument, is it the right way?
   - use a ton (~8 GiB) of RAM, have a try for hnix?
+
+* TODO
+- Get =store-paths= and download /binary cache/ for aarch64!
+- Accumulate and print number of downloaded derivations references statistics.
+- Download =nix-cache-info= as the first step of downloading the binary cache.
+- Benchmark naive solution vs Conduit streaming (untested) for recursion.
+- Produce Nar urls and download Nars aheadly of consume (when using =conduit=).
+- Download narinfos only feature to compute estimated binary cache size.
+- Show download progress.
+- Get an experience with serving offline artifacts bundle for several nixpkgs
+  commits at the same time from a single http endpoint while retaining control
+  of the every bundle (binary cache + fixed outputs). Hard link the files?
+- Implement a program option for checksum recalculation and recheck of
+  downloaded files.
+- Add =--verbose= flag as alias for some =--print-= options.

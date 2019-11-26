@@ -21,20 +21,25 @@ description:         Please see the README on GitHub at <https://github.com/alex
 dependencies:
 - base >= 4.7 && < 5
 
-# internal-libraries:
-#   nix-mirror-lib:
 library:
   source-dirs: src
   exposed: false
   dependencies:
+    - aeson
+    # - aeson-pretty # ?
+    - base16-bytestring
     - bytestring
     - conduit
     - containers
+    - cryptohash-sha1
     - cryptohash-sha256
+    - cryptohash-sha512
     - data-default-class
     - directory
+    - filepath
     - http-client
     - http-types
+    - mtl
     - req == 2.0.1
     - req-conduit
     - safe-exceptions
@@ -44,7 +49,7 @@ library:
     - yaml
 
 executables:
-  nix-mirror-exe:
+  nix-mirror:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -53,7 +58,10 @@ executables:
       - -with-rtsopts=-N
     dependencies:
       - nix-mirror
+      - directory
+      - mtl
       - optparse-applicative
+      - safe-exceptions
       - text
 
 tests:
