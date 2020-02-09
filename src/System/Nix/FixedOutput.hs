@@ -49,9 +49,6 @@ instance FromJSON HashType where
   parseJSON (String "sha512") = pure HashTypeSha512
   parseJSON x = fail $ "unknown hash type: " ++ show x
 
-eitherDecodeFileStrict :: (FromJSON a) => FilePath -> IO (Either String a)
-eitherDecodeFileStrict = fmap eitherDecode . B.readFile
-
 decodeFixedOutputsJsonFile :: FilePath -> IO [FixedOutputInfo]
 decodeFixedOutputsJsonFile f = do
   eitherDecodeResult <- eitherDecodeFileStrict f

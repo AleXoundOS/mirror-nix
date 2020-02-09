@@ -1,5 +1,5 @@
 name:                nix-mirror
-version:             0.1.1.0
+version:             0.1.1.1
 github:              "alexoundos/nix-mirror"
 license:             GPL-3
 author:              "Alexander Tomokhov"
@@ -40,7 +40,7 @@ library:
     - http-client
     - http-types
     - mtl
-    - req == 2.0.1
+    - req
     - req-conduit
     - safe-exceptions
     - temporary
