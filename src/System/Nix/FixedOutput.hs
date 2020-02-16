@@ -7,7 +7,6 @@ module System.Nix.FixedOutput
 
 import Data.Aeson
 import Data.Text (Text)
-import qualified Data.ByteString.Lazy as B (readFile)
 
 
 data FixedOutputInfo = FixedOutputInfo

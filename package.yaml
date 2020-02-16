@@ -26,7 +26,6 @@ library:
   exposed: false
   dependencies:
     - aeson
-    # - aeson-pretty # ?
     - base16-bytestring
     - bytestring
     - conduit
@@ -40,6 +39,7 @@ library:
     - http-client
     - http-types
     - mtl
+    - pretty
     - req
     - req-conduit
     - safe-exceptions

@@ -19,6 +19,7 @@ import Control.Monad (foldM)
 import Conduit
 import Control.Monad.Reader
 import Network.HTTP.Req
+import Data.Either (rights)
 
 import Download.Common
 import System.Nix.NarInfo as N
@@ -32,11 +33,11 @@ type HashCache = Set.Set ShortByteString
 defBcHost :: Url 'Https
 defBcHost = https "cache.nixos.org"
 
--- | Download a file without checksum comparison. Returns strict `ByteString`.
-downloadNoCheck :: (MonadReader DownloadAppConfig m, MonadIO m)
-                => UrlEndpoint -> m ByteString
-downloadNoCheck endp =
-  downloadAndSave' (Right (defBcHost /: endp, mempty)) (T.unpack endp)
+-- | Download a file without checksum comparison.
+downloadNoCheckE :: (MonadReader DownloadAppConfig m, MonadIO m)
+                => UrlEndpoint -> m (Either HttpException ByteString)
+downloadNoCheckE endp =
+  downloadAndSave (Right (defBcHost /: endp, mempty)) (T.unpack endp)
 
 -- | Download a file in a streaming manner, validating its checksum before
 -- renaming from temporary.
@@ -61,9 +62,14 @@ newStoreHashes hs n =
   filter (not . flip Set.member hs . compactHash) $ _references n
 
 getNarInfo :: (MonadReader DownloadAppConfig m, MonadIO m)
-           => StoreHash -> m NarInfo
-getNarInfo =
-  ((liftIO . decodeThrow) =<<) . downloadNoCheck . mkNarInfoEndpFromStoreHash
+           => StoreHash -> m (Either String NarInfo)
+getNarInfo storeHash = downloadNoCheckE (mkNarInfoEndpFromStoreHash storeHash)
+  >>= \case Left he -> liftIO (logFailed he) >> return (Left (show he))
+            Right bs -> liftIO $ Right <$> decodeThrow bs
+  where
+    logFailed he = do
+      appendFile "storepaths-fail.log" ("/nix/store/" ++ show storeHash ++ "\n")
+      print (show he ++ "\n")
 
 recurseNars :: (MonadIO m, MonadReader DownloadAppConfig m)
             => ([NarInfo], HashCache) -> NarInfo -> m ([NarInfo], HashCache)
@@ -77,7 +83,7 @@ recurseNar hs n =
   let hsCur = Set.insert (compactHash $ _storeHash n) hs
   in do
     -- download only new `NarInfo`s this one references, missing in HashCache
-    newNarInfos <- mapM getNarInfo $ newStoreHashes hs n
+    newNarInfos <- rights <$> mapM getNarInfo (newStoreHashes hs n)
     -- recursively download all referenced `NarInfo`s
     (ns, hsNew) <- foldM recurseNars ([], hsCur) newNarInfos
     -- append the input `NarInfo` to the accumulator and return updated hash set
@@ -87,9 +93,9 @@ downloadBinCacheForStorePaths' :: (MonadReader DownloadAppConfig m, MonadIO m)
                               => HashCache -> [StorePath] -> m HashCache
 downloadBinCacheForStorePaths' hs storePaths =
   -- parse store paths and make urls endpoints corresponding to NarInfos
-      mapM mkNarInfoEndpFromStorePath storePaths
+      mapM parseStorePath storePaths
   -- download and decode `NarInfo` files corresponding to every store path
-  >>= mapM (((liftIO . decodeThrow) =<<) . downloadNoCheck)
+  >>= fmap rights . mapM getNarInfo
   -- download all nested referenced `NarInfo`s
   >>= foldM (\a n -> log' n >> recurseNars a n) ([], hs)
   -- download Nar files (and validate checksum on the fly) for every `NarInfo`
@@ -110,7 +116,7 @@ recurseAllNars hs = do
     Just narInfo -> do
       yield narInfo
       -- download only new `NarInfo`s this one references, missing in HashCache
-      refNarInfos <- mapM getNarInfo $ newStoreHashes hs narInfo
+      refNarInfos <- rights <$> mapM getNarInfo (newStoreHashes hs narInfo)
       -- push newly downloaded `NarInfo`s back into stream (seems to be a hack!)
       mapM_ leftover refNarInfos
       -- recursive call for processing "leftovers" and the rest NarInfo stream
@@ -124,14 +130,18 @@ downloadBinCacheForStorePathsC hs storePaths =
     .| iterMC -- logging
       (\line -> liftIO $ putStr "taking target store path: " >> print line)
     -- parse store paths and make urls endpoints corresponding to `NarInfo`s
-    .| mapMC (fmap mkNarInfoEndpFromStoreHash . parseStorePath)
+    .| mapMC parseStorePath
     -- download and decode `NarInfo` files corresponding to every store path
-    .| mapMC (((liftIO . decodeThrow) =<<) . downloadNoCheck)
+    .| mapMC getNarInfo
+    .| rightsC
     -- download all nested referenced `NarInfo`s
     .| recurseAllNars hs
     `fuseUpstream` mapMC download
     `fuseUpstream` printC
     )
+  where
+    rightsC :: Monad m => ConduitT (Either a b) b m ()
+    rightsC = awaitForever $ either (\_ -> return ()) yield
 
 -- | Download Nix binary cache for the given target `StorePath`s list and all
 -- its recursive references (dependencies), automatically selecting `NarInfo`

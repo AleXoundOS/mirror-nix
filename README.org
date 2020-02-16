@@ -336,3 +336,4 @@ The current README is subject to mistakes and factual inaccuracy.
 - Implement a program option for checksum recalculation and recheck of
   downloaded files.
 - Add =--verbose= flag as alias for some =--print-= options.
+- Log failed file downloads with maximum info or in their native input format.
