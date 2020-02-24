@@ -8,9 +8,14 @@ only aimed at /binary cache/, see below.
 --------------------------------------------------------------------------------
 
 Resources here help you to prepare Nix/OS infrastracture for a completely
-offline (without network internet connection) workflow. Thus, download /binary
-cache/ and /fixed outputs/ (i.e. /tarballs/ / sources), serve them in your
-offline LAN and use.
+offline (without further network internet connection) workflow. Thus, download
+/binary cache/ and /fixed outputs/ (i.e. /tarballs/ / sources), serve them in
+your offline LAN and use.
+
+--------------------------------------------------------------------------------
+
+The /fixed output/ and /derivation/ terms may be mistakenly used throughout this
+README! Sorry, I still don't quite understand [[https://nixos.org/nixos/nix-pills/nix-store-paths.html][Nix Store Paths]].
 
 --------------------------------------------------------------------------------
 
@@ -87,8 +92,8 @@ at least, the initial goal (solving [[https://github.com/NixOS/nix/issues/2774][
 While binary cache is enough for NixOS installation, now this is the last part,
 I believe, needed for a completely offline NixOS operation.
 
-Currently I come to a guess that there are 2 kinds of /fixed/flat/ sources for
-nix derivations:
+Currently, I come to a guess that there are 2 kinds of sources for nix
+derivations when installing:
 - fixed output /derivations/ (reside in the /binary cache/)
 - fixed output /tarballs/ (http://tarballs.nixos.org/ contains them, but not
   only them) which relates to "bootstrapping" of the Nix itself and might not be

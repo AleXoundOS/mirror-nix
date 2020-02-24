@@ -2,3 +2,4 @@
 nix-mirror.cabal
 *~
 dist-newstyle
+stack.yaml.lock
