@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Download.Common
+module Download.Nix.Common
   ( DownloadAppConfig(..), DownloadError(..), Request, HashSink
   , downloadCheckAndSave, downloadCheckAndSave'
   , downloadAndSave, downloadAndSave'

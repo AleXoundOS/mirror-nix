@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Download.BinaryCache
+module Download.Nix.BinaryCache
   ( downloadBinCacheForStorePaths
   , downloadBinCacheForStorePaths', downloadBinCacheForStorePathsC
   , HashCache
@@ -21,7 +21,7 @@ import Control.Monad.Reader
 import Network.HTTP.Req
 import Data.Either (rights)
 
-import Download.Common
+import Download.Nix.Common
 import System.Nix.NarInfo as N
 import qualified System.Nix.Base32 as NixBase32
 

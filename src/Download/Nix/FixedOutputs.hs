@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Download.FixedOutputs
+module Download.Nix.FixedOutputs
   ( downloadFixedOutputDerivations
   , downloadFixedOutputTarball
   ) where
@@ -18,8 +18,8 @@ import Network.HTTP.Req
 
 import System.Nix.FixedOutput
 import qualified System.Nix.Base32 as NixBase32
-import Download.Common
-import Download.BinaryCache
+import Download.Nix.Common
+import Download.Nix.BinaryCache
 
 
 -- | For fixed output sources, i.e. "tarballs", of derivations.

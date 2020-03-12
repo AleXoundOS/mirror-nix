@@ -12,9 +12,9 @@ import Data.Maybe (mapMaybe)
 import System.Directory (createDirectoryIfMissing)
 
 import System.Nix.FixedOutput
-import Download.Common (DownloadAppConfig(..))
-import Download.BinaryCache
-import Download.FixedOutputs
+import Download.Nix.Common (DownloadAppConfig(..))
+import Download.Nix.BinaryCache
+import Download.Nix.FixedOutputs
 
 
 data Opts = Opts FilePath UseConduitRecurse [Command]
