@@ -33,17 +33,16 @@ library:
     - cryptohash-sha1
     - cryptohash-sha256
     - cryptohash-sha512
-    - data-default-class
     - directory
     - filepath
     - http-client
     - http-types
     - mtl
-    - pretty
     - req
     - req-conduit
     - safe-exceptions
     - temporary
+    - typed-process
     - text
     - vector
     - yaml
