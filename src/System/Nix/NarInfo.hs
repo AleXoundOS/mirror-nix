@@ -11,12 +11,7 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Yaml
 import qualified Data.Char as C
-
--- Data.Functor from ghc-8.2.2.
-(<&>) :: Functor f => f a -> (a -> b) -> f b
-as <&> f = f <$> as
-
-infixl 1 <&>
+import Data.Functor ((<&>))
 
 data NarInfo = NarInfo
   { _storeHash   :: !StoreHash
