@@ -23,9 +23,9 @@ import Data.Either (rights)
 
 import Download.Nix.Common
 import System.Nix.NarInfo as N
+import System.Nix.StorePath
 import qualified System.Nix.Base32 as NixBase32
 
-type StorePath = Text
 type UrlEndpoint = Text
 type HashCache = Set.Set ShortByteString
 
@@ -144,8 +144,8 @@ downloadBinCacheForStorePathsC hs storePaths =
     rightsC = awaitForever $ either (\_ -> return ()) yield
 
 -- | Download Nix binary cache for the given target `StorePath`s list and all
--- its recursive references (dependencies), automatically selecting `NarInfo`
--- recursion implementation based on `MonadReader DownloadAppConfig`.
+-- its recursive references (dependencies), selecting `NarInfo` recursion
+-- implementation based on `MonadReader DownloadAppConfig`.
 downloadBinCacheForStorePaths :: (MonadReader DownloadAppConfig m, MonadIO m)
                               => HashCache -> [StorePath] -> m HashCache
 downloadBinCacheForStorePaths hs storePaths =

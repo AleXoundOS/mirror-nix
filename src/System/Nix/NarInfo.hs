@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module System.Nix.NarInfo
-  ( NarInfo(..), NarCompressionType(..), StoreName, StoreHash, FileHash
-  , mkStoreHashFromStorePath, mkStoreHashFromStoreName, readNarFile
-  , parseStorePath, mkNarInfoEndpFromStoreHash, mkNarInfoEndpFromStorePath
+  ( NarInfo(..), NarCompressionType(..), FileHash
+  , readNarFile, parseStorePath
+  , mkNarInfoEndpFromStoreHash, mkNarInfoEndpFromStorePath
   , decodeThrow
   ) where
 
@@ -12,6 +12,8 @@ import Data.Text (Text)
 import Data.Yaml
 import qualified Data.Char as C
 import Data.Functor ((<&>))
+
+import System.Nix.StorePath
 
 data NarInfo = NarInfo
   { _storeHash   :: !StoreHash
@@ -27,8 +29,6 @@ data NarInfo = NarInfo
   , _sig         :: Text
   } deriving (Eq, Show)
 
-type StoreName = Text
-type StoreHash = Text
 type FileHash = Text
 type UrlEndpoint = Text
 
@@ -68,31 +68,19 @@ parseFileHash t = case T.split (== ':') t of
                     ["sha256", base32hash] -> pure base32hash
                     _ -> failWith "sha256 `FileHash` cannot be parsed" t
 
-parseStorePath :: Monad m => Text -> m StoreHash
-parseStorePath t =
-  maybe (failWith "invalid store path" t) pure $ mkStoreHashFromStorePath t
-
 parseRefs :: Monad m => Maybe Text -> m [StoreHash]
 parseRefs Nothing = return []
 parseRefs (Just t) = maybe (failWith "invalid reference in" t) pure mRefHashes
   where
     mRefHashes = mapM mkStoreHashFromStoreName (T.words t)
 
-mkStoreHashFromStorePath :: Text -> Maybe StoreHash
-mkStoreHashFromStorePath t =
-  mkStoreHashFromStoreName =<< T.stripPrefix "/nix/store/" t
-
-mkStoreHashFromStoreName :: StoreName -> Maybe StoreHash
-mkStoreHashFromStoreName t = if all ($ base32hash) [not . T.null, isBase32]
-                             then Just base32hash
-                             else Nothing
-  where
-    (base32hash, _rest) = T.splitAt 32 t
-    isBase32 = T.all (`elem` ("0123456789abcdfghijklmnpqrsvwxyz" :: String))
-
 -- | Read and parse NarInfo directly from file.
 readNarFile :: FilePath -> IO NarInfo
 readNarFile = decodeFileThrow
+
+parseStorePath :: Monad m => Text -> m StoreHash
+parseStorePath t =
+  maybe (failWith "invalid store path" t) pure $ mkStoreHashFromStorePath t
 
 -- | Parsing error message generation.
 failWith :: Monad m => String -> Text -> m a
