@@ -8,35 +8,37 @@ module Download.Nix.Common
   ( DownloadAppConfig(..), DownloadError(..), Request, HashSink
   , downloadCheckAndSave, downloadCheckAndSave'
   , downloadAndSave, downloadAndSave'
-  , reqOrExcept
+  , showDownloadError
+  , mkRequest
   , sinkHash, sinkSha1, sinkSha256, sinkSha512, sinkBypass
   , sha1, sha256, sha512
   ) where
 
+import Conduit
+import Control.Exception.Safe
+import Control.Monad.Reader
+import Data.ByteString (ByteString, readFile, writeFile)
+import Data.Foldable (sequenceA_)
+import Data.Maybe (fromMaybe)
+import Data.Monoid ((<>))
+import Data.Text (Text)
+import Network.HTTP.Client (Response, BodyReader)
 import Network.HTTP.Req
 import Network.HTTP.Req.Conduit (responseBodySource)
-import Network.HTTP.Client (Response, BodyReader)
-import Data.ByteString (ByteString, readFile, writeFile)
-import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T (encodeUtf8)
-import System.FilePath.Posix (takeDirectory)
 import System.Directory (createDirectoryIfMissing, doesFileExist, renameFile)
+import System.FilePath.Posix (takeDirectory)
 import System.IO (hClose)
 import System.IO.Temp (withTempFile)
-import Conduit
 import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Crypto.Hash.SHA256 as SHA256
 import qualified Crypto.Hash.SHA512 as SHA512
-import Data.Maybe (fromMaybe)
-import Data.Monoid ((<>))
-import Control.Monad.Reader
 import qualified Data.ByteString.Base16 as Base16 (encode)
-import Control.Exception.Safe
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T (encodeUtf8)
 
 
-data DownloadAppConfig = DownloadAppConfig
-                         { _basePath :: FilePath, _useConduit :: Bool }
+data DownloadAppConfig = DownloadAppConfig { appCachePath :: FilePath
+                                           , appBcBaseUrl :: Text }
   deriving (Show)
 
 type Request = Either (Url 'Http, Option 'Http) (Url 'Https, Option 'Https)
@@ -44,6 +46,7 @@ type HashSink = ConduitT ByteString Void (ResourceT IO) ByteString
 
 data DownloadError = HttpError HttpException
                    | CheckError (ByteString, ByteString) FilePath
+  deriving (Show)
 
 data HashFuncs c = HashFuncs
   { _ctx      :: c
@@ -53,12 +56,18 @@ data HashFuncs c = HashFuncs
 
 
 -- is it a bad thing to do?
-instance Show DownloadError where
-  show (HttpError he) = show he
-  show (CheckError (csExp, csGot) fp) =
-    "Downloaded file (" ++ fp ++ ") checksum validation failure!\n" ++
-    "Expected: " ++ show (Base16.encode csExp) ++ "\n" ++
-    "Got:      " ++ show (Base16.encode csGot)
+-- instance Show DownloadError where
+--   show (HttpError he) = show he
+--   show (CheckError (csExp, csGot) fp) =
+--     "Downloaded file (" ++ fp ++ ") checksum validation failure!\n" ++
+--     "Expected: " ++ show (Base16.encode csExp) ++ "\n" ++
+--     "Got:      " ++ show (Base16.encode csGot)
+showDownloadError :: DownloadError -> String
+showDownloadError (HttpError he) = show he
+showDownloadError (CheckError (csExp, csGot) fp) =
+  "Downloaded file (" ++ fp ++ ") checksum validation failure!\n" ++
+  "Expected: " ++ show (Base16.encode csExp) ++ "\n" ++
+  "Got:      " ++ show (Base16.encode csGot)
 
 
 sha1 :: HashFuncs SHA1.Ctx
@@ -114,8 +123,8 @@ getWithBodyReader r bodyReader =
     handler :: HttpException -> IO (Either HttpException a)
     handler = return . Left
 
-reqOrExcept :: Text -> Request
-reqOrExcept t = fromMaybe
+mkRequest :: Text -> Request
+mkRequest t = fromMaybe
   (error $ "cannot parse url: " ++ T.unpack t)
   -- Why does it work with `Request` being not polymorphic??????
   -- What if we get (Url 'Https) (Option 'Http)???
@@ -132,14 +141,14 @@ downloadCheckAndSave :: (MonadReader DownloadAppConfig m, MonadIO m)
   -> (ConduitT ByteString Void (ResourceT IO) ByteString, ByteString)
   -> m (Either DownloadError FilePath)
 downloadCheckAndSave request filename (sink, hash1) = do
-  (DownloadAppConfig basePath _) <- ask
-  let filepath = basePath ++ "/" ++ filename
-      filepathBadCS = basePath ++ ".bad-checksum/" ++ filename
+  cachePath <- asks appCachePath
+  let filepath = cachePath ++ "/" ++ filename
+      filepathBadCS = cachePath ++ ".bad-checksum/" ++ filename
   exists <- liftIO $ doesFileExist filepath
   if exists
     then return (Right filepath)
     else liftIO
-         $ withTempFile basePath tmpFileTemplate
+         $ withTempFile cachePath tmpFileTemplate
          $ \fpTmp hndl ->
              do
                dlRes <- getWithBodyReader request $ bodyReader hndl
@@ -185,16 +194,14 @@ downloadAndSave :: (MonadReader DownloadAppConfig m, MonadIO m)
                 => Request -> FilePath
                 -> m (Either HttpException ByteString)
 downloadAndSave request filename = do
-  (DownloadAppConfig basePath _) <- ask
-  let filepath = basePath ++ "/" ++ filename
+  cachePath <- asks appCachePath
+  let filepath = cachePath ++ "/" ++ filename
   exists <- liftIO $ doesFileExist filepath
   if exists
     then Right <$> liftIO (Data.ByteString.readFile filepath)
     else liftIO $ get request
          >>= \eRes ->
-               case eRes of
-                 Left _he -> return ()
-                 Right bs -> Data.ByteString.writeFile filepath bs
+               sequenceA_ (Data.ByteString.writeFile filepath <$> eRes)
                >> return eRes
 
 downloadAndSave' :: (MonadReader DownloadAppConfig m, MonadIO m)
@@ -219,5 +226,5 @@ sinkHash (HashFuncs init' update finalize) = sink init'
         Nothing -> return $! finalize ctx
         Just bs -> sink $! update ctx bs
 
-sinkBypass :: Monad m => ConduitT ByteString Void m ByteString
+sinkBypass :: ConduitT ByteString Void m ByteString
 sinkBypass = return $! mempty

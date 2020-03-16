@@ -2,18 +2,19 @@
 
 module System.Nix.NarInfo
   ( NarInfo(..), NarCompressionType(..), FileHash
+  , readNarFile
   , mkNarInfoEndpFromStoreHash
   , mkNarInfoEndpFromStoreName
   , decodeThrow
   ) where
 
+import Prelude hiding (fail)
 import Control.Monad.Fail
-import Data.Functor ((<&>))
+import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Yaml
-import Prelude hiding (fail)
 import qualified Data.Char as C
-import qualified Data.Text as T
+import Data.Functor ((<&>))
 
 import System.Nix.StoreNames
 
@@ -50,40 +51,40 @@ instance FromJSON NarInfo where
     <*> (parseRefs      =<< o .:? "References") -- optional
     <*> o .:? "Deriver"
     <*> o .: "Sig"
-    <&> clearSelfRefs
+    <&> filterRefs
   parseJSON x =
     fail $ "NarInfo YAML parsing Error! \
            \Given ByteString does not begin with YAML map:\n" ++ show x
 
 -- Filter out references to itself.
-clearSelfRefs :: NarInfo -> NarInfo
-clearSelfRefs n =
+filterRefs :: NarInfo -> NarInfo
+filterRefs n =
   n {_references = filter (/= _storeName n) $ _references n}
 
-parseNarComp :: MonadFail m => Text -> m NarCompressionType
-parseNarComp "xz"    = pure CompXz
+parseNarComp :: Monad m => Text -> m NarCompressionType
+parseNarComp "xz" = pure CompXz
 parseNarComp "bzip2" = pure CompBz2
-parseNarComp "none"  = pure CompNone
+parseNarComp "none" = pure CompNone
 parseNarComp t = failWith "Unexpected `Compression` type read from Narinfo" t
 
-parseFileHash :: MonadFail m => Text -> m FileHash
+parseFileHash :: Monad m => Text -> m FileHash
 parseFileHash t = case T.split (== ':') t of
                     ["sha256", base32hash] -> pure base32hash
                     _ -> failWith "sha256 `FileHash` cannot be parsed" t
 
-parseRefs :: MonadFail m => Maybe Text -> m [StoreName]
+parseRefs :: Monad m => Maybe Text -> m [StoreName]
 parseRefs Nothing = return []
-parseRefs (Just t) = either (fail . errorStack) pure mRefHashes
+parseRefs (Just t) = either (failWith "invalid reference in" t) pure mRefHashes
   where
-    mRefHashes = traverse parseStoreName (T.words t)
-    errorStack deeper =
-      "invalid reference in:\n" ++ T.unpack t ++ "\n" ++ deeper
+    mRefHashes = mapM parseStoreName (T.words t)
 
-parseStorePath :: MonadFail m => Text -> m StoreName
-parseStorePath t = either (fail . errorStack) pure $ stripParseStoreName t
-  where
-    errorStack deeper =
-      "invalid store path in:\n" ++ T.unpack t ++ "\n" ++ deeper
+-- | Read and parse NarInfo directly from file.
+readNarFile :: FilePath -> IO NarInfo
+readNarFile = decodeFileThrow
+
+parseStorePath :: (MonadFail m, Monad m) => Text -> m StoreName
+parseStorePath t =
+  either (failWith "invalid store path" t) pure $ stripParseStoreName t
 
 -- | Parsing error message generation.
 failWith :: MonadFail m => String -> Text -> m a

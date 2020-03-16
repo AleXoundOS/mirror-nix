@@ -67,4 +67,4 @@ packages:
 
 nix:
   enable: true
-  packages: [zlib]
+  packages: [nix, zlib]

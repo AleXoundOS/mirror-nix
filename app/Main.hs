@@ -1,235 +1,363 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module Main where
+module Main (main) where
 
-import Options.Applicative as OA
-import Data.Semigroup ((<>))
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import Control.Monad.Reader
-import qualified Data.List as L (intercalate)
-import Data.Maybe (mapMaybe)
+import Data.Foldable (sequenceA_)
+import Data.Semigroup ((<>))
+import Options.Applicative as OA
 import System.Directory (createDirectoryIfMissing)
+import System.Exit
+import Text.Pretty.Simple (pPrint, pShowNoColor)
+import qualified Data.ByteString.Char8 as B (readFile)
+import qualified Data.Map as Map
+import qualified Data.Text as T
+import qualified Data.Text.IO as T (readFile, writeFile)
+import qualified Data.Text.Lazy.IO as TL (writeFile)
 
-import System.Nix.FixedOutput
+import Download.Nix.All
 import Download.Nix.Common (DownloadAppConfig(..))
-import Download.Nix.BinaryCache
-import Download.Nix.FixedOutputs
+import Download.Nix.Nars
+import Download.Nix.Realise
+import Download.Nix.NarInfos
+import System.Nix.Derivation
+import System.Nix.EnvDrvInfo (parseEnvDrvInfo)
+import System.Nix.FixedOutput (decodeFixedOutputsJson)
+import System.Nix.StoreNames
 
 
-data Opts = Opts FilePath UseConduitRecurse [Command]
-  deriving Show
+data Opts = Opts
+  { optCachePath     :: FilePath
+  , optNarsDlChoice  :: NarsDownloadChoice
+  , optRealiseChoice :: StoreRealiseChoice
+  , optPathsDumpFp   :: Maybe FilePath
+  , optNarInfoDumpFp :: Maybe FilePath
+  , optNarDumpFp     :: Maybe FilePath
+  , optUseStreaming  :: Bool
+  , optCacheBaseUrl  :: String
+  , optNixpkgs       :: String
+  , optSystems       :: [String]
+  , optESrcInps      :: EitherSourcesInputs
+  } deriving (Show)
 
-data Command
-  = BinaryCache FilePath
-  | FixedOutputs FilePath [FoSource]
-  deriving Show
+--   , optStreamOrDump  :: StreamOrDump
+-- data StreamOrDump = UseStreaming | DumpUrls [DumpUrlsOut]
+--   deriving (Show)
 
-data FoSource = FoSrcDerivations | FoSrcTarballs DryRun [Print]
+-- data DumpUrlsOut = DumpNarInfoUrls FilePath | DumpNarUrls FilePath
+--   deriving (Show)
+
+data NarsDownloadChoice = NarsDlNew | NarsDlMissingToo | NarsDlNone
   deriving (Eq, Show)
 
-type UseConduitRecurse = Bool
+data StoreRealiseChoice = StoreRealizeOn SignKey | StoreRealizeOff FilePath
+  deriving (Show)
 
-type DryRun = Bool
-data Print
-  = PrintDrv
-  | PrintHash | PrintMode | PrintName | PrintPath | PrintHashType | PrintUrls
+data InputScriptOrData = InputScript FilePath | InputData FilePath
   deriving (Eq, Show)
+
+type SignKey = String
+
+data EitherSourcesInputs = EitherSourcesInputs
+  { eitherInputChannel              :: Maybe FilePath
+  , eitherInputNixosReleaseCombined :: Maybe InputScriptOrData
+  , eitherInputNixpkgsRelease       :: Maybe InputScriptOrData
+  , eitherInputNixpkgsReleaseFixed  :: Maybe InputScriptOrData
+  } deriving (Show)
 
 
 main :: IO ()
-main = run mempty =<< customExecParser p opts
+main = run =<< customExecParser p opts
   where
     opts = info (helper <*> optsParser)
       ( fullDesc
-        <> header "nix-mirror - download nix binary cache and fixed outputs" )
+        <> header "nix-mirror-cache - \
+                  \download specified piece of nix binary cache for http serve"
+      )
     p = defaultPrefs {prefShowHelpOnError = True}
 
-run :: HashCache -> Opts -> IO ()
--- binary cache mirror command
-run hc (Opts basePath useConduit (BinaryCache storePathsFile : cmds)) = do
-  storePaths <- T.lines <$> T.readFile storePathsFile
-  createDirectoryIfMissing True bcPath
-  putStrLn
-    ("starting binary cache download for \"" ++ storePathsFile ++ "\"")
-  hc' <- runReaderT
-         (downloadBinCacheForStorePaths hc storePaths)
-         (DownloadAppConfig bcPath useConduit)
-  putStrLn
-    ("finished binary cache download for \"" ++ storePathsFile ++ "\"")
-    -- work on the rest of the commands
-    >> run hc' (Opts basePath useConduit cmds)
-  where
-    bcPath = basePath ++ "/cache"
--- fixed output derivations mirror command
-run hc
-  (Opts basePath useConduit
-   (FixedOutputs foJsonFile (FoSrcDerivations : foSrcs) : cmds)) =
-  let foPath = basePath ++ "/cache"
-  in do
-    createDirectoryIfMissing True foPath
-    fixedOutputsInfos <- decodeFixedOutputsJsonFile foJsonFile
-    putStrLn
-      ("starting fixed output derivations download for \""
-       ++ foJsonFile ++ "\"")
-    hc' <- runReaderT
-           (downloadFixedOutputDerivations hc fixedOutputsInfos)
-           (DownloadAppConfig foPath useConduit)
-    putStrLn
-      ("finished fixed output derivations download for \""
-       ++ foJsonFile ++ "\"")
-    -- work on the rest of the fixed output sources (kinds)
-    run hc' (Opts basePath useConduit
-             (FixedOutputs foJsonFile foSrcs : cmds))
--- fixed output tarballs mirror command
-run hc
-  (Opts basePath useConduit
-   (FixedOutputs foJsonFile (FoSrcTarballs isDry prints : foSrcs) : cmds)) =
-  let foPath = basePath ++ "/tarballs"
-  in do
-    createDirectoryIfMissing True foPath
-    fixedOutputsInfos <- decodeFixedOutputsJsonFile foJsonFile
-    putStrLn
-      ("starting fixed output tarballs download for \"" ++ foJsonFile ++ "\"")
-    runReaderT
-      (dlFoTbs isDry prints fixedOutputsInfos)
-      (DownloadAppConfig foPath useConduit)
-    putStrLn
-      ("finished fixed output tarballs download for \"" ++ foJsonFile ++ "\"")
-    -- work on the rest of the fixed output sources (kinds)
-    run hc (Opts basePath useConduit
-            (FixedOutputs foJsonFile foSrcs : cmds))
-run hc (Opts basePath useConduit (FixedOutputs _ [] : cmds)) =
-  -- work on the rest of the commands
-  run hc (Opts basePath useConduit cmds)
-run _ (Opts _ _ []) = return ()
+run :: Opts -> IO ()
+run opts = do
+  when (all ((== Nothing) . ($ optESrcInps opts))
+         [ fmap InputData . eitherInputChannel
+         , eitherInputNixosReleaseCombined
+         , eitherInputNixpkgsRelease
+         , eitherInputNixpkgsReleaseFixed
+         ]) $ do
+    when (optNarsDlChoice opts /= NarsDlMissingToo) $ do
+      putStrLn "no nix store paths sources given, exitting!"
+      exitFailure
+    undefined -- TODO: download missing Nars
 
--- | Download fixed output tarballs with logging (printing).
-dlFoTbs :: (MonadReader DownloadAppConfig m, MonadIO m)
-        => Bool -> [Print] -> [FixedOutputInfo] -> m ()
-dlFoTbs isDry prints = mapM_ dlTbWithLog
+  createDirectoryIfMissing True (optCachePath opts)
+
+  putStrLn "---> calling nix tools"
+  storePathsSourcesObtained <- getStorePathsSources
+    $ mkStorePathsSourcesInput
+    (optESrcInps opts) (optNixpkgs opts) (optSystems opts)
+
+  putStrLn "---> nix tools obtained data stats:"
+  printSourcesStats storePathsSourcesObtained
+
+  putStrLn "---> reading data (if plain input files given)"
+  storePathsSources <-
+    replenishStorePathsSources storePathsSourcesObtained (optESrcInps opts)
+
+  putStrLn "---> overall obtained data stats:"
+  printSourcesStats storePathsSourcesObtained
+
+  putStrLn "---> instantiating derivations missing in /nix/store"
+  instantiatedDrvsCount <- length <$>
+    instantiateMissingEnvDrvs (optNixpkgs opts) (optSystems opts) ["<nixpkgs>"]
+                              (sourceNixpkgsRelease storePathsSources)
+  putStrLn
+    $ "---> instantiated " ++ show instantiatedDrvsCount ++ " derivations\n"
+
+  putStrLn "---> combining data"
+  allStoreNames <- getAllPaths storePathsSources
+  putStrLn
+    $ "---> number of discovered (locally) store paths to get: "
+    ++ show (Map.size allStoreNames)
+  sequenceA_ (flip T.writeFile
+              (T.concat $ map textStoreNamePath $ Map.keys allStoreNames)
+               <$> optPathsDumpFp opts
+             )
+
+  putStrLn "---> getting recursively all comprising narinfo's"
+  (GetNarInfosState narInfos missingPaths _ _ _) <-
+    runReaderT (getNarInfos allStoreNames) dlAppConfig
+  putStrLn
+    $ "---> " ++ show (length missingPaths) ++ " store paths miss narinfo's"
+  putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's\n"
+
+  case optRealiseChoice opts of
+    StoreRealizeOn signKey -> do
+      putStrLn "---> realising store paths (that miss narinfo)"
+      realiseState <- runReaderT
+        (realiseAndCopyPaths signKey missingPaths) dlAppConfig
+      pPrint realiseState
+      putStrLn "---> finished store paths realisation"
+    StoreRealizeOff dumpFp -> do
+      putStrLn
+        $ "---> dumping store paths missing in " ++ optCacheBaseUrl opts
+      TL.writeFile dumpFp $ pShowNoColor missingPaths
+
+  when doDlNars $ do
+    putStrLn "---> getting nars (of every narinfo)"
+    dlNarsState <-
+      runReaderT (dlNars narInfos) dlAppConfig
+    putStrLn "---> finished nars retrieval"
+    putStrLn $ "---> got " ++ show (length $ stStored dlNarsState) ++ " nars"
+    putStrLn $ "---> failed: " ++ show (Download.Nix.Nars.stFailed dlNarsState)
+
+  putStrLn "---> finished binary cache download!"
+
   where
-    dlTbWithLog foi = do
-      liftIO $ putStr "[downloading] " >> printFixedOutputInfo prints foi
-      unless isDry
-        $ downloadFixedOutputTarball foi >>= liftIO . putStrLn . log' foi
-    showErrors = ("\n---\n" ++) . L.intercalate "\n---\n" . map show
-    log' _ (Nothing, []) =
-      error "internal error: no file downloaded and no error"
-    log' _ (Just fp, es) = "[saved] \"" ++ fp ++ "\"\n" ++
-                           "while having some errors:\n" ++ showErrors es
-    log' foi (Nothing, es) =
-      "[error] could not download tarball for: " ++ T.unpack (_path foi)
-      ++ showErrors es ++ "\n\n"
+    dlAppConfig =
+      DownloadAppConfig (optCachePath opts) (T.pack $ optCacheBaseUrl opts)
+    doDlNars =
+      case optNarsDlChoice opts of
+        NarsDlNew        -> True
+        NarsDlMissingToo -> True
+        NarsDlNone       -> False
+
+printStats :: [(GetPathStatus, (StoreName, Maybe DrvPath))] -> IO ()
+printStats statuses = do
+  putStrLn "---> obtained store paths stats"
+  putStrLn $ "downloaded (ever) count: " ++ show downloadedCount
+  putStrLn $ "built locally (realised) count: " ++ show realisedCount
+  putStrLn $ "total (successful): " ++ show totalCount
+  putStrLn $ "failed: " ++ show failedCount
+  where
+    downloadedCount = length $ filter ((== DownloadedFromServer) . fst) statuses
+    realisedCount   = length $ filter ((== BuiltLocally) . fst) statuses
+    totalCount      = downloadedCount + realisedCount
+    failedCount     = length $ filter ((== StatusFailed) . fst) statuses
 
 optsParser :: Parser Opts
 optsParser = Opts
   <$> strOption
-  (long "base-path" <> metavar "BASE_PATH" <> value "nix-mirror" <> showDefault
-    <> help "Base path for mirror contents.")
-  <*> switch
-  (long "conduit-recurse"
-    <> help "Use `leftover` conduit streaming mechanism for `NarInfo` \
-            \recursion.")
-  <*> some (hsubparser (binaryCacheCmd <> fixedOutputsCmd))
-
-binaryCacheCmd :: Mod CommandFields Command
-binaryCacheCmd = command "binaryCache"
-  $ info (inputInfo <*> binaryCacheOpts)
-  $ progDesc "Download Nix binary cache given `store-paths` file."
-  where
-    inputInfo = infoOption bcInputInfoMsg
-      (long "input-help"
-        <> help "Instructions for obtaining `store-paths` input file." )
-
-binaryCacheOpts :: Parser Command
-binaryCacheOpts = BinaryCache <$>
-  strOption
-  (long "store-paths" <> metavar "STORE_PATHS"
-   <> help "Path to a \"store-paths\" file (a list of /nix/store/* paths).")
-
-fixedOutputsCmd :: Mod CommandFields Command
-fixedOutputsCmd = command "fixedOutputs"
-  $ info (inputInfo <*> fixedOutputsOpts)
-  $ progDesc "Download Nix fixed outputs given json array of derivations info."
-  where
-    inputInfo = infoOption foInputInfoMsg
-      (long "input-help"
-        <> help "Instructions for obtaining \
-                \fixed output derivations json input file." )
-
-bcInputInfoMsg :: String
-bcInputInfoMsg =
-  "1. Go to `https://nixos.org/channels/`.\n\
-  \2. Download and decompress `store-paths.xz` file \
-  \for the desired nixpkgs commit.\n"
-
-fixedOutputsOpts :: Parser Command
-fixedOutputsOpts = FixedOutputs <$>
-  strOption
-  (long "drvs-json" <> metavar "DRVS_JSON_FILE"
-   <> help "Path to a json file produced with find-fixed-outputs.nix.")
-  <*>
-  some
-  (
-    flag' FoSrcDerivations
-    (long "derivations"
-     <> help "Download fixed output derivations (from cache.nixos.org), \
-             \targeting at /nix/store/.")
-    <|>
-    flag' FoSrcTarballs
-    (long "tarballs"
-     <> help "Download the \"tarballs\" of fixed output derivations, \
-             \building up a mirror of tarballs.nixos.org.")
-    <*>
-    switch
-    (long "dry-run"
-     <> help "Do not actually download. Useful in combination with --print-*.")
-    <*>
-    many prints
+  (long "cache-path" <> metavar "CACHE_PATH"
+   <> value "nix-cache-mirror" <> showDefault
+   <> help "Base path for binary cache mirror contents")
+  <*> narsDownloadChoiceParser
+  <*> realiseChoiceParser
+  <*> optional
+  (strOption
+    (long "dump-paths" <> metavar "STORE_PATHS_FILE"
+     <> help "Dump target store paths (except recursive narinfo discovery)")
   )
+  <*> optional
+  (strOption
+    (long "dump-narinfo-urls" <> metavar "NARINFO_URLS_FILE"
+     <> help "NOT IMPLEMENTED")
+  )
+  <*> optional
+  (strOption
+    (long "dump-nar-urls" <> metavar "NAR_URLS_FILE"
+     <> help "NOT IMPLEMENTED")
+  )
+  <*> switch
+  (long "use-streaming"
+   <> help "NOT IMPLEMENTED! Use `leftover` conduit streaming mechanism for \
+           \binary cache `NarInfo` recursion (unknown which is best)")
+  <*> strOption
+   (long "cache-base-url" <> metavar "CACHE_BASE_URL"
+     <> value "https://cache.nixos.org" <> showDefault)
+  <*> strOption
+   (long "nixpkgs" <> metavar "NIXPKGS" <> value "<nixpkgs>" <> showDefault
+    <> help
+     "The string after `-I nixpkgs=`")
+  <*>
+  (pure ["x86_64-linux"]
+    <|> many
+    (strOption
+     (long "system" <> metavar "SYSTEM"
+      <> help
+       "Nix platform passed in `supportedSystems` list argument to expressions \
+       \(multiple occurences of the option populate the list)")
+    )
+  )
+  <*> eitherSourcesInputsParser
+
+narsDownloadChoiceParser :: Parser NarsDownloadChoice
+narsDownloadChoiceParser =
+  flag' NarsDlNew
+  (long "nars-dl-new"
+   <> help "Download nars discovered from the given inputs through narinfos")
+  <|>
+  flag' NarsDlMissingToo
+  (long "nars-dl-missing"
+   <> help "NOT IMPLEMENTED! Additionally download missing nars \
+           \for scanned narinfos in cache dir")
+  <|>
+  flag' NarsDlNone
+  (long "nars-dl-none"
+   <> help "Do not download any nars")
+  <|>
+  pure NarsDlNew
+
+realiseChoiceParser :: Parser StoreRealiseChoice
+realiseChoiceParser =
+  StoreRealizeOn <$> strOption
+  (long "sign-key" <> metavar "SIGN_KEY"
+    <> help "Path to the private signing key for `nix sign-paths -k` \
+            \needed during `nix copy` of realised paths")
+  <|>
+  StoreRealizeOff <$> strOption
+  (long "dump-realise-skip" <> metavar "DUMP_REALISE_SKIP"
+    <> help "Path to file for logging store paths that skipped realisation")
+
+eitherSourcesInputsParser :: Parser EitherSourcesInputs
+eitherSourcesInputsParser = EitherSourcesInputs
+  <$> optional
+  (strOption
+   (long "store-paths" <> short 's'
+     <> metavar "STORE_PATHS"
+     <> help
+     "Path to a \"store-paths\" file containing a list of /nix/store/* paths")
+  )
+  <*> optional eitherInpParseNixosReleaseCombined
+  <*> optional eitherInpParseNixpkgsRelease
+  <*> optional eitherInpParseNixpkgsReleaseFixed
+
+eitherInpParseNixosReleaseCombined :: Parser InputScriptOrData
+eitherInpParseNixosReleaseCombined =
+  InputScript <$> strOption
+  (long "release-combined-nix" <> short 'r'
+    <> metavar "RELEASE_COMBINED_NIX"
+    <> help
+    "Path to \"release-combined.nix\" \
+    \(example: \"<nixpkgs/nixos/release-combined.nix>\")"
+  )
+  <|>
+  InputData <$> strOption
+  (long "release-combined-drvs" <> short 'R'
+    <> metavar "RELEASE_COMBINED_DRVS"
+    <> help
+    "Path to a file with a list of derivation paths \
+    \(a result of instantiating \"release-combined.nix\"; \
+    \makes sense only if the whole derivation graph is present in\
+    \ /nix/store)"
+  )
+
+eitherInpParseNixpkgsRelease :: Parser InputScriptOrData
+eitherInpParseNixpkgsRelease =
+  InputScript <$> strOption
+   (long "ofborg-outpaths-nix" <> short 'o'
+     <> metavar "OFBORG_OUTPATHS_NIX"
+     <> help
+     "Path to the outpaths nix script \
+     \(originally from https://github.com/NixOS/ofborg; \
+     \example: \"./ofborg-outpaths.nix\")"
+   )
+  <|>
+  InputData <$> strOption
+   (long "ofborg-outpaths-out" <> short 'O'
+     <> metavar "OFBORG_OUTPATHS_OUT"
+     <> help
+    "Path to a file with a attrPath<->derivation<->output paths table \
+    \(a result of running nix-env on outpaths script)"
+   )
+
+eitherInpParseNixpkgsReleaseFixed :: Parser InputScriptOrData
+eitherInpParseNixpkgsReleaseFixed =
+  InputScript <$> strOption
+   (long "find-fixed-outputs-nix" <> short 'f'
+     <> metavar "FIND_FIXED_OUTPUTS_NIX"
+     <> help
+     "Path to the \"find-fixed-outputs.nix\" script \
+     \(see README for the origins; \
+     \example: \"./find-fixed-outputs-nix\")"
+   )
+  <|>
+  InputData <$> strOption
+   (long "find-fixed-outputs-json" <> short 'F'
+     <> metavar "FIND_FIXED_OUTPUTS_JSON"
+     <> help
+     "Path to a json file \
+     \(a result of instantiating \"find-fixed-outputs.nix\")"
+   )
+
+mkStorePathsSourcesInput :: EitherSourcesInputs -> String -> [String]
+                         -> StorePathsSourcesInput
+mkStorePathsSourcesInput eitherSourcesInput nixpkgs systems =
+  StorePathsSourcesInput
+  { srcInputChannel = Nothing
+  , srcInputNixosReleaseCombined =
+      eitherInputToMaybeFile $ eitherInputNixosReleaseCombined eitherSourcesInput
+  , srcInputNixpkgsRelease =
+      eitherInputToMaybeFile $ eitherInputNixpkgsRelease eitherSourcesInput
+  , srcInputNixpkgsReleaseFixed =
+      eitherInputToMaybeFile $ eitherInputNixpkgsReleaseFixed eitherSourcesInput
+  , srcInputNixpkgs = nixpkgs
+  , srcInputSystems = systems
+  }
+
+eitherInputToMaybeFile :: Maybe InputScriptOrData -> Maybe FilePath
+eitherInputToMaybeFile (Just (InputScript fp)) = Just fp
+eitherInputToMaybeFile (Just (InputData _))    = Nothing
+eitherInputToMaybeFile Nothing = Nothing
+
+replenishStorePathsSources :: StorePathsSources -> EitherSourcesInputs
+                           -> IO StorePathsSources
+replenishStorePathsSources
+  (StorePathsSources
+    srcChannel srcNixosReleaseCombined srcNixpkgsRelease srcNixpkgsReleaseFixed)
+  (EitherSourcesInputs
+    _eChannel  eNixosReleaseCombined   eNixpkgsRelease   eNixpkgsReleaseFixed) =
+  StorePathsSources
+  <$> pure   srcChannel
+  <*> ifData srcNixosReleaseCombined eNixosReleaseCombined readDrvPaths
+  <*> ifData srcNixpkgsRelease       eNixpkgsRelease       readEnvDrvInfo
+  <*> ifData srcNixpkgsReleaseFixed  eNixpkgsReleaseFixed  readFixedOutputInfo
   where
-    prints =
-      flag' PrintDrv
-      (long "print-drv"       <> help "Print `drv` path (/nix/store/*.drv).")
-      <|>
-      flag' PrintHash
-      (long "print-hash"      <> help "Print hashes.")
-      <|>
-      flag' PrintMode
-      (long "print-mode"      <> help "Print mode: `flat` or `recursive`.")
-      <|>
-      flag' PrintName
-      (long "print-name"      <> help "Print name of derivations.")
-      <|>
-      flag' PrintPath
-      (long "print-path"      <> help "Print store path (/nix/store/*).")
-      <|>
-      flag' PrintHashType
-      (long "print-hash-type" <> help "Print hash type, e.g. `sha1`.")
-      <|>
-      flag' PrintUrls
-      (long "print-urls"      <> help "Print original source urls.")
-
-foInputInfoMsg :: String
-foInputInfoMsg =
-  "1. Get `find-fixed-outputs.nix` script from `nix-mirror` git repository.\n\
-  \2. Determine and set NIX_PATH $nixpkgs value for the derired commit.\n\
-  \3. Use this command to produce the json file:\n\
-  \$ nix-instantiate -I nixpkgs=$nixpkgs --eval --strict --json find-fixed-outputs.nix --arg expr 'import <nixpkgs/maintainers/scripts/all-tarballs.nix>' > nixpkgs-fixed-outputs.json\n\
-  \\n\
-  \Warning! This action needs approximately 8 GiB of RAM as of 2019-09."
-
--- | Print selected fields of a fixed output derivation.
-printFixedOutputInfo :: [Print] -> FixedOutputInfo -> IO ()
-printFixedOutputInfo ps (FixedOutputInfo drv hash mode name path type' urls) =
-  let showAssoc =
-        [ (PrintDrv,      "drv: "  ++ T.unpack drv)
-        , (PrintHash,     "hash: " ++ T.unpack hash)
-        , (PrintMode,     "mode: " ++ show mode)
-        , (PrintName,     "name: " ++ T.unpack name)
-        , (PrintPath,     "path: " ++ T.unpack path)
-        , (PrintHashType, "type: " ++ show type')
-        , (PrintUrls,     "urls: " ++ show urls)
-        ]
-  in putStrLn $ L.intercalate "; " $ mapMaybe (`lookup` showAssoc) ps
+    ifData :: [a] -> Maybe InputScriptOrData -> (FilePath -> IO [a]) -> IO [a]
+    ifData srcField (Just (InputScript _))  _     = return srcField
+    ifData []       (Just (InputData   fp)) readF = readF fp
+    ifData _        (Just (InputData   _))  _     =
+      error "both kinds of input are present!"
+    ifData srcField Nothing                 _     = return srcField
+    readDrvPaths = fmap T.lines . T.readFile
+    readEnvDrvInfo = fmap (map parseEnvDrvInfo . T.lines) . T.readFile
+    readFixedOutputInfo = fmap decodeFixedOutputsJson . B.readFile

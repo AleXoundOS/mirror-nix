@@ -56,7 +56,7 @@ at least, the initial goal (solving [[https://github.com/NixOS/nix/issues/2774][
   - [[#serve-in-lan][serve in LAN]]
 - [[#warnings][warnings]]
 - [[#questions][questions]]
-- [[#todo][TODO]]
+- [[#ideas--todo][ideas / TODO]]
 
 * goals
 ** binary cache mirroring
@@ -327,7 +327,7 @@ The current README is subject to mistakes and factual inaccuracy.
   - use [[https://github.com/NixOS/nixpkgs/blob/master/maintainers/scripts/all-tarballs.nix][all-tarballs.nix]] as an argument, is it the right way?
   - use a ton (~8 GiB) of RAM, have a try for hnix?
 
-* TODO
+* ideas / TODO
 - Get =store-paths= and download /binary cache/ for aarch64!
 - Accumulate and print number of downloaded derivations references statistics.
 - Download =nix-cache-info= as the first step of downloading the binary cache.
@@ -342,3 +342,4 @@ The current README is subject to mistakes and factual inaccuracy.
   downloaded files.
 - Add =--verbose= flag as alias for some =--print-= options.
 - Log failed file downloads with maximum info or in their native input format.
+- Compute and print estimated/downloaded size in live.
