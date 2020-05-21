@@ -19,7 +19,7 @@ data EnvDrvInfo = EnvDrvInfo
   , _drvPath  :: !DrvPath
   , _outputs  :: ![(OutputName, OutputPath)]
   }
-  deriving (Show)
+  deriving (Eq, Show)
 
 
 parseEnvDrvInfo :: Text -> EnvDrvInfo

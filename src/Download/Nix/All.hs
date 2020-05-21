@@ -56,7 +56,7 @@ data StorePathsSources = StorePathsSources
   -- | store-paths.xz
   { sourceChannel              :: ![StorePath]
   -- | nix-instantiate nixos/release-combined.nix
-  , sourceNixosReleaseCombined :: ![DrvPath]
+  , sourceNixosReleaseCombined :: !(HashMap DrvPath DerivationP)
   -- | nix-env -qaP .\/outpaths.nix (from ofborg) @ pkgs\/top-level\/release.nix
   , sourceNixpkgsRelease       :: ![EnvDrvInfo]
   -- | maintainers\/scripts\/all-tarballs.nix
@@ -79,13 +79,16 @@ getStorePathsSources (StorePathsSourcesInput
                        nixpkgs systemsList) =
   StorePathsSources
     <$> maybe' (fmap T.lines . T.readFile)             fpChannel
-    <*> maybe' (nixInstantiate   nixpkgs args . (:[])) fpNixosReleaseCombined
+    <*> maybe' instantiateShowDrvRec fpNixosReleaseCombined
     <*> maybe' (nixEnvQueryAvail nixpkgs args . (:[])) fpNixpkgsRelease
     <*> maybe' (instantiateFixedOutputs nixpkgs args)  fpNixpkgsReleaseFixed
   where
     maybe' f (Just a) = f a
-    maybe' _ Nothing = return []
+    maybe' _ Nothing = return mempty
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
+    instantiateShowDrvRec :: FilePath -> IO (HashMap DrvPath DerivationP)
+    instantiateShowDrvRec =
+      nixShowDerivationsRec <=< nixInstantiate nixpkgs args . (:[])
 
 -- | Instantiate derivations, missing in /nix/store, but obtained by nix-env
 -- (side effect!).
@@ -97,8 +100,7 @@ instantiateMissingEnvDrvs nixpkgs systemsList files envDrvInfos = do
   print $ length missingDrvsInfos
   batchInstantiateInfos $ map (T.unpack . _attrPath) missingDrvsInfos
   where
-    batchInstantiateInfos =
-      batchList (nixInstantiateAttrs nixpkgs args files) 10000
+    batchInstantiateInfos = nixInstantiateAttrsB 10000 nixpkgs args files
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
 
 {- | Given 4 sources, get all \/nix\/store\/ paths with corresponding derivation
@@ -128,16 +130,17 @@ getAllPaths (StorePathsSources
                           , Just $ _drv foInfo )
               ) srcNixpkgsReleaseFixed
 
-      drvPaths = nubOrd $ concat
-        [ srcNixosReleaseCombined
-        , map E._drvPath srcNixpkgsRelease
-        , map F._drv     srcNixpkgsReleaseFixed
-        ]
+      drvPaths = nubOrd
+        (  map E._drvPath srcNixpkgsRelease
+        ++ map F._drv     srcNixpkgsReleaseFixed
+        )
   in do
     -- discover more store paths recursively from derivation paths
-    pathsDiscovered <- Map.unions <$> mapM allPathsFromDrvPath drvPaths
+    pathsDiscovered <- drvMapToStoreMap
+                       <$> nixShowDerivationsRecB 10000 drvPaths
     -- discovered paths (always have DrvPath) take precedence over direct
-    return (Map.union pathsDiscovered pathsDirect)
+    return $ Map.unions
+      [drvMapToStoreMap srcNixosReleaseCombined, pathsDiscovered, pathsDirect]
 
 -- | All paths from `EnvDrvInfo` with `StoreName`<->`DrvPath` assoc normalized.
 envDrvInfoPaths :: EnvDrvInfo -> [(StoreName, Maybe DrvPath)]
@@ -146,14 +149,11 @@ envDrvInfoPaths envDrvInfo = map (, Just $ _drvPath envDrvInfo) outputs
     outputs :: [StoreName]
     outputs = map (forceEitherStr . parseStoreName . snd) $ _outputs envDrvInfo
 
--- | All paths from `DrvPath`.
-allPathsFromDrvPath :: DrvPath -> IO (Map StoreName (Maybe DrvPath))
-allPathsFromDrvPath = fmap drvMapToStoreMap . nixShowDerivationRec
+-- | Transpose [StoreName] from every DerivationP to keys.
+drvMapToStoreMap :: HashMap DrvPath DerivationP
+                 -> Map StoreName (Maybe DrvPath)
+drvMapToStoreMap = HM.foldlWithKey' addPathsFromDerivation Map.empty
   where
-    -- transpose [StoreName] from every DerivationP to keys
-    drvMapToStoreMap :: HashMap DrvPath DerivationP
-                     -> Map StoreName (Maybe DrvPath)
-    drvMapToStoreMap = HM.foldlWithKey' addPathsFromDerivation Map.empty
     -- insert [StoreName] of a single derivation as keys
     addPathsFromDerivation
       :: Map StoreName (Maybe DrvPath) -> DrvPath -> DerivationP

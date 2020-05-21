@@ -28,7 +28,7 @@ data FixedOutputInfo = FixedOutputInfo
   , _type :: HashType
   , _urls :: [Text]
   }
-  deriving Show
+  deriving (Eq, Show)
 
 data FixedOutputInfo' = FixedOutputInfo'
   { _drv'  :: !Text
@@ -39,7 +39,7 @@ data FixedOutputInfo' = FixedOutputInfo'
   , _type' :: HashType'
   , _urls' :: [Text]
   }
-  deriving Show
+  deriving (Show)
 
 data DrvMode = DrvModeFlat | DrvModeRecursive
   deriving (Eq, Show)

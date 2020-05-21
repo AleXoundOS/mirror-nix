@@ -24,6 +24,7 @@ import System.Nix.Derivation
 import System.Nix.EnvDrvInfo (parseEnvDrvInfo)
 import System.Nix.FixedOutput (decodeFixedOutputsJson)
 import System.Nix.StoreNames
+import Utils (forceEitherStr)
 
 
 data Opts = Opts
@@ -272,11 +273,12 @@ eitherInpParseNixosReleaseCombined =
   )
   <|>
   InputData <$> strOption
-  (long "release-combined-drvs" <> short 'R'
+  (long "release-combined-json" <> short 'R'
     <> metavar "RELEASE_COMBINED_DRVS"
     <> help
-    "Path to a file with a list of derivation paths \
-    \(a result of instantiating \"release-combined.nix\"; \
+    "Path to a file with a json array of all derivation paths \
+    \(a result of instantiating \"release-combined.nix\" \
+    \and showing all derivations recursively; \
     \makes sense only if the whole derivation graph is present in\
     \ /nix/store)"
   )
@@ -348,16 +350,22 @@ replenishStorePathsSources
     _eChannel  eNixosReleaseCombined   eNixpkgsRelease   eNixpkgsReleaseFixed) =
   StorePathsSources
   <$> pure   srcChannel
-  <*> ifData srcNixosReleaseCombined eNixosReleaseCombined readDrvPaths
+  <*> ifData srcNixosReleaseCombined eNixosReleaseCombined readJsonDrvs
   <*> ifData srcNixpkgsRelease       eNixpkgsRelease       readEnvDrvInfo
   <*> ifData srcNixpkgsReleaseFixed  eNixpkgsReleaseFixed  readFixedOutputInfo
   where
-    ifData :: [a] -> Maybe InputScriptOrData -> (FilePath -> IO [a]) -> IO [a]
-    ifData srcField (Just (InputScript _))  _     = return srcField
-    ifData []       (Just (InputData   fp)) readF = readF fp
-    ifData _        (Just (InputData   _))  _     =
+    ifData :: (Monoid a, Eq a)
+      => a -> Maybe InputScriptOrData -> (FilePath -> IO a) -> IO a
+    ifData have
+      | have == mempty = caseHaveEmpty
+      | otherwise      = caseHaveSmth have
+    caseHaveEmpty (Just (InputData  fp)) readF = readF fp
+    caseHaveEmpty (Just (InputScript _)) _     = error "missing script result"
+    caseHaveEmpty Nothing _ = mempty
+    caseHaveSmth  have (Just (InputScript _)) _ = return have
+    caseHaveSmth _have (Just (InputData   _)) _ =
       error "both kinds of input are present!"
-    ifData srcField Nothing                 _     = return srcField
-    readDrvPaths = fmap T.lines . T.readFile
+    caseHaveSmth have Nothing                _ = return have
+    readJsonDrvs = fmap forceEitherStr . eitherDecodeFileStrict'
     readEnvDrvInfo = fmap (map parseEnvDrvInfo . T.lines) . T.readFile
     readFixedOutputInfo = fmap decodeFixedOutputsJson . B.readFile

@@ -1,12 +1,13 @@
 module System.Nix.NixToolsProc
   ( Nixpkgs, NixArg, NixList(..)
   , nixInstantiate, nixInstantiateStrictBs
-  , nixShowDerivationRec, nixShowDerivationsRec
+  , nixShowDerivationsRec, nixShowDerivationsRecB
   , nixStoreRealiseDrvs, nixEnvQueryAvail
   , nixCopyPaths
   , nixSignPaths
   , mkNixStrList
-  , nixInstantiateAttrs
+  , nixShowDerivationsARec
+  , nixInstantiateAttrs, nixInstantiateAttrsB
   , batchList
   ) where
 
@@ -59,8 +60,8 @@ nixInstantiate nixpkgs nixArgsTup files = map decodeUtf8 . B.lines . toStrict
       $ ["--quiet", "--quiet"]
       ++ mkNixPath nixpkgs ++ mkNixArgs nixArgsTup ++ files
 
--- TODO quiet
--- | @nix-instantiate@ the given nix scripts.
+-- TODO quiet?
+-- | @nix-instantiate@ the given attributes. Works in batch.
 nixInstantiateAttrs :: Nixpkgs -> [NixArg] -> [FilePath] -> [String]
                     -> IO [DrvPath]
 nixInstantiateAttrs nixpkgs nixArgsTup files attrs =
@@ -72,6 +73,12 @@ nixInstantiateAttrs nixpkgs nixArgsTup files attrs =
       ++ mkNixPath nixpkgs ++ mkNixArgs nixArgsTup ++ files
       ++ concatMap mkAttrOption attrs
     mkAttrOption attr = ["-A", attr]
+
+-- | @nix-instantiate@ the given attributes. Works in batch.
+nixInstantiateAttrsB :: Int -> Nixpkgs -> [NixArg] -> [FilePath] -> [String]
+                     -> IO [DrvPath]
+nixInstantiateAttrsB n nixpkgs nixArgsTup files =
+  batchList n (nixInstantiateAttrs nixpkgs nixArgsTup files)
 
 -- | @nix-instantiate@ the given nix scripts with strict evaluation and JSON
 -- output.
@@ -95,16 +102,29 @@ nixEnvQueryAvail nixpkgs nixArgsTup files =
       ++ mkNixPath nixpkgs ++ mkNixArgs nixArgsTup
       ++ concatMap (\file -> ["-f", file]) files
 
--- | @nix show-derivation --recursive@ the given derivation path.
-nixShowDerivationRec :: DrvPath -> IO (HashMap DrvPath DerivationP)
-nixShowDerivationRec drvPath = either error id . eitherDecodeStrict' . toStrict
+-- | @nix show-derivation --recursive@ the given derivations paths.
+nixShowDerivationsRec :: [DrvPath] -> IO (HashMap DrvPath DerivationP)
+nixShowDerivationsRec drvPaths = forceEitherStr . eitherDecodeStrict' . toStrict
   <$> readProcessStdout_ process
   where
     process = proc "nix"
-      ["show-derivation", "--recursive", T.unpack drvPath]
+      $ ["show-derivation", "--recursive"] ++ map T.unpack drvPaths
 
-nixShowDerivationsRec :: HashMap DrvPath DerivationP -> IO (HashMap DrvPath DerivationP)
-nixShowDerivationsRec = undefined -- TODO batch `xargs` style calls
+-- | @nix show-derivation --recursive@ the given derivations paths.
+nixShowDerivationsRecB :: Int -> [DrvPath] -> IO (HashMap DrvPath DerivationP)
+nixShowDerivationsRecB n = batchList n nixShowDerivationsRec
+
+-- | @nix show-derivation --recursive@ derivation paths of the given attributes.
+nixShowDerivationsARec
+  :: Nixpkgs -> [NixArg] -> [String] -> IO (HashMap DrvPath DerivationP)
+nixShowDerivationsARec nixpkgs nixArgsTup attrs =
+  forceEitherStr . eitherDecodeStrict' . toStrict
+  <$> readProcessStdout_ process
+  where
+    process = proc "nix"
+      $ ["show-derivation", "--recursive"]
+      ++ mkNixPath nixpkgs ++ mkNixArgs nixArgsTup
+      ++ attrs
 
 -- | @nix-store --realise@.
 nixStoreRealiseDrvs :: [DrvPath] -> IO [StoreName]
@@ -131,12 +151,12 @@ nixSignPaths storePaths key = runProcess_ process
       $ ["sign-paths", "-r", "-k", key] ++ storePaths
 
 -- | Batch IO list processing.
-batchList :: Monad m => ([a] -> m [b]) -> Int -> [a] -> m [b]
-batchList _ _ [] = return []
-batchList mFunc qtyAtOnce inpList = go inpList
+batchList :: (Monad m, Monoid b) => Int -> ([a] -> m b) -> [a] -> m b
+batchList _ _ [] = return mempty
+batchList qtyAtOnce mFunc inpList = go inpList
   where
-    go [] = return []
+    go [] = return mempty
     go ls = do
       result <- mFunc (take qtyAtOnce ls)
       results <- go (drop qtyAtOnce ls)
-      return (result ++ results)
+      return (result <> results)

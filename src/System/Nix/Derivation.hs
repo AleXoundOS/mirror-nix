@@ -6,7 +6,9 @@ module System.Nix.Derivation
   ( DerivationP(..)
   , DrvPath
   , allDerivationPaths
-  , eitherDecodeStrict', parseJsonDerivations'
+  , parseJsonDerivations'
+  , eitherDecodeStrict'
+  , eitherDecodeFileStrict'
   ) where
 
 

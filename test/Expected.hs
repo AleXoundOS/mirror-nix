@@ -94,11 +94,11 @@ noNarInfo2 = Nothing
 noNarInfo3 :: Maybe NarInfo
 noNarInfo3 = Nothing
 
-jsonDerivation1 :: Maybe (HashMap DrvPath Derivation)
+jsonDerivation1 :: Maybe (HashMap DrvPath DerivationP)
 jsonDerivation1 = Just $ fromList
   [
       ( "/nix/store/asjiw2q6lny0qrz7y9alvamjskx2bl6s-base64_js___base64_js_1.2.3.tgz.drv"
-      , Derivation
+      , DerivationP
           { drvOutputs =
               [
                   ( "out"
@@ -129,7 +129,6 @@ jsonDerivation1 = Just $ fromList
                   , [ "out" ]
                   )
               ]
-          , drvBuilder = Just "/nix/store/rm1hz1lybxangc8sdl7xvzs5dcvigvf7-bash-4.4-p23/bin/bash"
           , drvEnvPaths =
               [ StoreName
                   { unStoreName =
@@ -160,5 +159,5 @@ jsonDerivation1 = Just $ fromList
       )
   ]
 
-noDerivation1 :: Maybe (HashMap DrvPath Derivation)
+noDerivation1 :: Maybe (HashMap DrvPath DerivationP)
 noDerivation1 = Nothing
