@@ -24,6 +24,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 
 import System.Nix.StoreNames
+import Utils
 
 
 type DrvPath = Text
@@ -61,7 +62,7 @@ parseEnv = withObject "env" $ \o ->
 allDerivationPaths :: DerivationP -> [StoreName]
 allDerivationPaths drv =
   map snd (drvOutputs drv)
-  ++ rights (map stripParseStoreName (drvInputSrcs drv))
+  ++ map (forceEitherStr . stripParseStoreName) (drvInputSrcs drv)
   ++ drvEnvPaths drv
 
 parseJsonDerivations' :: ByteString -> HashMap DrvPath DerivationP

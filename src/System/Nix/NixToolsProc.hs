@@ -7,7 +7,7 @@ module System.Nix.NixToolsProc
   , nixSignPaths
   , mkNixStrList
   , nixInstantiateAttrs
-  , batchListProcess
+  , batchList
   ) where
 
 import Data.ByteString (ByteString)
@@ -131,12 +131,12 @@ nixSignPaths storePaths key = runProcess_ process
       $ ["sign-paths", "-r", "-k", key] ++ storePaths
 
 -- | Batch IO list processing.
-batchListProcess :: ([a] -> IO [b]) -> Int -> [a] -> IO [b]
-batchListProcess _ _ [] = return []
-batchListProcess ioFunc qtyAtOnce inpList = go inpList
+batchList :: Monad m => ([a] -> m [b]) -> Int -> [a] -> m [b]
+batchList _ _ [] = return []
+batchList mFunc qtyAtOnce inpList = go inpList
   where
     go [] = return []
     go ls = do
-      result <- ioFunc (take qtyAtOnce ls)
+      result <- mFunc (take qtyAtOnce ls)
       results <- go (drop qtyAtOnce ls)
       return (result ++ results)

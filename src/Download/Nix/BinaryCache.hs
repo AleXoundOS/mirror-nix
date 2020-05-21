@@ -9,6 +9,7 @@ module Download.Nix.BinaryCache
   , HashCache
   , recurseNarInfo, recurseNarInfoAcc, recurseNarInfosB
   , recDlStoreNameNarInfos
+  , downloadNar'
   ) where
 
 import Data.Text (Text)

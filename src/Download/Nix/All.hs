@@ -98,7 +98,7 @@ instantiateMissingEnvDrvs nixpkgs systemsList files envDrvInfos = do
   batchInstantiateInfos $ map (T.unpack . _attrPath) missingDrvsInfos
   where
     batchInstantiateInfos =
-      batchListProcess (nixInstantiateAttrs nixpkgs args files) 10000
+      batchList (nixInstantiateAttrs nixpkgs args files) 10000
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
 
 {- | Given 4 sources, get all \/nix\/store\/ paths with corresponding derivation
