@@ -11,11 +11,9 @@
 with import <nixpkgs> { };
 with lib;
 
-{ expr }:
-
 let
 
-  root = expr;
+  root = import <nixpkgs/maintainers/scripts/all-tarballs.nix>;
 
   uniqueSrcs = map (x: x.file) (genericClosure {
     startSet = map (file: { key = file.hash; inherit file; }) srcs;

@@ -49,6 +49,7 @@ library:
     - safe-exceptions
     - temporary
     - text
+    - transformers
     - typed-process
     - unordered-containers
     - vector
