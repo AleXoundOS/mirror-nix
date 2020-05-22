@@ -6,7 +6,7 @@ module System.Nix.NixToolsProc
   , nixCopyPaths
   , nixSignPaths
   , mkNixStrList
-  , nixShowDerivationsARec
+  , nixShowDerivationsARec, nixShowDerivationsARecB
   , nixInstantiateAttrs, nixInstantiateAttrsB
   , batchList
   ) where
@@ -116,15 +116,24 @@ nixShowDerivationsRecB n = batchList n nixShowDerivationsRec
 
 -- | @nix show-derivation --recursive@ derivation paths of the given attributes.
 nixShowDerivationsARec
-  :: Nixpkgs -> [NixArg] -> [String] -> IO (HashMap DrvPath DerivationP)
-nixShowDerivationsARec nixpkgs nixArgsTup attrs =
+  :: Nixpkgs -> [NixArg] -> [String] -> String
+  -> IO (HashMap DrvPath DerivationP)
+nixShowDerivationsARec nixpkgs nixArgsTup attrs file =
   forceEitherStr . eitherDecodeStrict' . toStrict
   <$> readProcessStdout_ process
   where
     process = proc "nix"
       $ ["show-derivation", "--recursive"]
       ++ mkNixPath nixpkgs ++ mkNixArgs nixArgsTup
-      ++ attrs
+      ++ ["-f", file] ++ attrs
+
+-- | @nix show-derivation --recursive@ derivation paths of the given attributes.
+-- Works in batch.
+nixShowDerivationsARecB
+  :: Int -> Nixpkgs -> [NixArg] -> String -> [String]
+  -> IO (HashMap DrvPath DerivationP)
+nixShowDerivationsARecB n nixpkgs nixArgsTup file =
+  batchList n (\attrs -> nixShowDerivationsARec nixpkgs nixArgsTup attrs file)
 
 -- | @nix-store --realise@.
 nixStoreRealiseDrvs :: [DrvPath] -> IO [StoreName]

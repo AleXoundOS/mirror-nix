@@ -78,17 +78,14 @@ getStorePathsSources (StorePathsSourcesInput
                        fpNixpkgsReleaseFixed
                        nixpkgs systemsList) =
   StorePathsSources
-    <$> maybe' (fmap T.lines . T.readFile)             fpChannel
-    <*> maybe' instantiateShowDrvRec fpNixosReleaseCombined
-    <*> maybe' (nixEnvQueryAvail nixpkgs args . (:[])) fpNixpkgsRelease
-    <*> maybe' (instantiateFixedOutputs nixpkgs args)  fpNixpkgsReleaseFixed
+    <$> maybe' (fmap T.lines . T.readFile)              fpChannel
+    <*> maybe' (nixShowDerivationsARec nixpkgs args []) fpNixosReleaseCombined
+    <*> maybe' (nixEnvQueryAvail nixpkgs args . (:[]))  fpNixpkgsRelease
+    <*> maybe' (instantiateFixedOutputs nixpkgs args)   fpNixpkgsReleaseFixed
   where
     maybe' f (Just a) = f a
     maybe' _ Nothing = return mempty
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
-    instantiateShowDrvRec :: FilePath -> IO (HashMap DrvPath DerivationP)
-    instantiateShowDrvRec =
-      nixShowDerivationsRec <=< nixInstantiate nixpkgs args . (:[])
 
 -- | Instantiate derivations, missing in /nix/store, but obtained by nix-env
 -- (side effect!).
