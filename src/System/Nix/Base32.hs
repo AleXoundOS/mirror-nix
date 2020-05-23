@@ -30,7 +30,7 @@ encode c = T.pack $ map char32 [nChar - 1, nChar - 2 .. 0]
     -- the - 1 inside of it.
     nChar = fromIntegral $ ((BS.length c * 8 - 1) `div` 5) + 1
 
-    byte = BS.index c . fromIntegral
+    byte = BS.index c
 
     -- May need to switch to a more efficient calculation at some
     -- point.
