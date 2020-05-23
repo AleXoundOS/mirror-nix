@@ -17,12 +17,13 @@ import qualified Data.Text.Lazy.IO as TL (writeFile)
 
 import Download.Nix.All
 import Download.Nix.Common (DownloadAppConfig(..))
+import Download.Nix.NarInfos
 import Download.Nix.Nars
 import Download.Nix.Realise
-import Download.Nix.NarInfos
 import System.Nix.Derivation
 import System.Nix.EnvDrvInfo (parseEnvDrvInfo)
 import System.Nix.FixedOutput (decodeFixedOutputsJson)
+import System.Nix.NarInfo
 import System.Nix.StoreNames
 import Utils (forceEitherStr)
 
@@ -119,8 +120,9 @@ run opts = do
   putStrLn
     $ "---> number of discovered (locally) store paths to get: "
     ++ show (Map.size allStoreNames)
+  -- dumping all store paths
   sequenceA_ (flip T.writeFile
-              (T.concat $ map textStoreNamePath $ Map.keys allStoreNames)
+              (T.unlines $ map textStoreNamePath $ Map.keys allStoreNames)
                <$> optPathsDumpFp opts
              )
 
@@ -130,6 +132,17 @@ run opts = do
   putStrLn
     $ "---> " ++ show (length missingPaths) ++ " store paths miss narinfo's"
   putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's\n"
+  -- dumping urls of all narinfos
+  sequenceA_ (flip T.writeFile
+               (T.unlines
+                 $ map (mkNarInfoEndpFromStoreName . _storeName) narInfos)
+               <$> optNarDumpFp opts
+             )
+  -- dumping urls of all nars
+  sequenceA_ (flip T.writeFile
+              (T.unlines $ map _url narInfos)
+               <$> optNarDumpFp opts
+             )
 
   case optRealiseChoice opts of
     StoreRealizeOn signKey -> do
@@ -190,13 +203,11 @@ optsParser = Opts
   )
   <*> optional
   (strOption
-    (long "dump-narinfo-urls" <> metavar "NARINFO_URLS_FILE"
-     <> help "NOT IMPLEMENTED")
+    (long "dump-narinfo-urls" <> metavar "NARINFO_URLS_FILE")
   )
   <*> optional
   (strOption
-    (long "dump-nar-urls" <> metavar "NAR_URLS_FILE"
-     <> help "NOT IMPLEMENTED")
+    (long "dump-nar-urls" <> metavar "NAR_URLS_FILE")
   )
   <*> switch
   (long "use-streaming"
