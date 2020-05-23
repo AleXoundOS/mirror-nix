@@ -43,6 +43,8 @@ setEnvVars
 setEnvVars =
   setEnv [ ("GC_INITIAL_HEAP_SIZE", gcInitialHeapSize)
          , ("NIXPKGS_ALLOW_INSECURE", "1")
+         , ("NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM", "1")
+         , ("NIXPKGS_ALLOW_BROKEN", "1")
          , ("NIXPKGS_ALLOW_UNFREE", "1") ]
 
 mkNixPath :: Nixpkgs -> [String]
@@ -65,8 +67,8 @@ nixInstantiate nixpkgs nixArgsTup files = map decodeUtf8 . B.lines . toStrict
 nixInstantiateAttrs :: Nixpkgs -> [NixArg] -> [FilePath] -> [String]
                     -> IO [DrvPath]
 nixInstantiateAttrs nixpkgs nixArgsTup files attrs =
-  map decodeUtf8 . B.lines . toStrict . snd
-  <$> readProcessStdout (setEnvVars process)
+  map decodeUtf8 . B.lines . toStrict
+  <$> readProcessStdout_ (setEnvVars process)
   where
     process = proc "nix-instantiate"
       $ ["--quiet", "--quiet"]

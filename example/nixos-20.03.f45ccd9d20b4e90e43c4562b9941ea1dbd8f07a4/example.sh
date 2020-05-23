@@ -8,3 +8,4 @@ stack exec -- nix-mirror-cache `
 `--ofborg-outpaths-out="nix-env-ofborg-outpaths.txt" `
 `--find-fixed-outputs-json="find-fixed-outputs-pp.json" `
 ` $@
+

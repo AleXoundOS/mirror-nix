@@ -92,12 +92,12 @@ getStorePathsSources (StorePathsSourcesInput
 instantiateMissingEnvDrvs :: Nixpkgs -> [String] -> [FilePath] -> [EnvDrvInfo]
                           -> IO [DrvPath]
 instantiateMissingEnvDrvs nixpkgs systemsList files envDrvInfos = do
-  missingDrvsInfos <-
+  missingDrvs <- map (T.unpack . _attrPath) <$>
     filterM (fmap not . doesFileExist . T.unpack . _drvPath) envDrvInfos
   -- (side effect in /nix/store)
-  batchInstantiateInfos $ map (T.unpack . _attrPath) missingDrvsInfos
+  batchInstantiateInfos missingDrvs
   where
-    batchInstantiateInfos = nixInstantiateAttrsB 10000 nixpkgs args files
+    batchInstantiateInfos = nixInstantiateAttrsB 100 nixpkgs args files
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
 
 {- | Given 4 sources, get all \/nix\/store\/ paths with corresponding derivation
