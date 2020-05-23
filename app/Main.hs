@@ -5,9 +5,11 @@ module Main (main) where
 import Control.Monad.Reader
 import Data.Foldable (sequenceA_)
 import Data.Semigroup ((<>))
+import GHC.IO.Handle (hDuplicateTo)
 import Options.Applicative as OA
 import System.Directory (createDirectoryIfMissing)
 import System.Exit
+import System.IO
 import Text.Pretty.Simple (pPrint, pShowNoColor)
 import qualified Data.ByteString.Char8 as B (readFile)
 import qualified Data.Map as Map
@@ -40,6 +42,7 @@ data Opts = Opts
   , optNixpkgs       :: String
   , optSystems       :: [String]
   , optESrcInps      :: EitherSourcesInputs
+  , optLogFile       :: Maybe FilePath
   } deriving (Show)
 
 --   , optStreamOrDump  :: StreamOrDump
@@ -80,6 +83,8 @@ main = run =<< customExecParser p opts
 
 run :: Opts -> IO ()
 run opts = do
+  logHd <- sequenceA (enableLogging <$> optLogFile opts)
+  putStrLn "nix-mirror-cache start"
   when (all ((== Nothing) . ($ optESrcInps opts))
          [ fmap InputData . eitherInputChannel
          , eitherInputNixosReleaseCombined
@@ -165,8 +170,15 @@ run opts = do
     putStrLn $ "---> failed: " ++ show (Download.Nix.Nars.stFailed dlNarsState)
 
   putStrLn "---> finished binary cache download!"
+  sequenceA_ (closeLog <$> logHd)
 
   where
+    enableLogging fp = do
+      hd <- openFile fp WriteMode
+      hDuplicateTo hd stdout
+      hSetBuffering hd LineBuffering
+      return hd
+    closeLog = hClose
     dlAppConfig =
       DownloadAppConfig (optCachePath opts) (T.pack $ optCacheBaseUrl opts)
     doDlNars =
@@ -203,11 +215,15 @@ optsParser = Opts
   )
   <*> optional
   (strOption
-    (long "dump-narinfo-urls" <> metavar "NARINFO_URLS_FILE")
+    (long "dump-narinfo-urls" <> metavar "NARINFO_URLS_FILE"
+      <> help "Path to a file for storing all narinfos urls \
+              \the program has downloaded.")
   )
   <*> optional
   (strOption
-    (long "dump-nar-urls" <> metavar "NAR_URLS_FILE")
+    (long "dump-nar-urls" <> metavar "NAR_URLS_FILE"
+      <> help "Path to a file for storing all nar urls \
+              \ the program has found before download.")
   )
   <*> switch
   (long "use-streaming"
@@ -231,6 +247,10 @@ optsParser = Opts
     )
   )
   <*> eitherSourcesInputsParser
+  <*> optional
+  (strOption
+    (long "log-file" <> metavar "LOG_FILE"
+      <> help "Path to a log output file of this program."))
 
 narsDownloadChoiceParser :: Parser NarsDownloadChoice
 narsDownloadChoiceParser =
