@@ -94,7 +94,7 @@ instantiateMissingEnvDrvs :: Nixpkgs -> [String] -> [FilePath] -> [EnvDrvInfo]
 instantiateMissingEnvDrvs nixpkgs systemsList files envDrvInfos = do
   missingDrvsInfos <-
     filterM (fmap not . doesFileExist . T.unpack . _drvPath) envDrvInfos
-  print $ length missingDrvsInfos
+  -- (side effect in /nix/store)
   batchInstantiateInfos $ map (T.unpack . _attrPath) missingDrvsInfos
   where
     batchInstantiateInfos = nixInstantiateAttrsB 10000 nixpkgs args files
@@ -223,9 +223,12 @@ getPath hs (storeName, mDrvPath) signKey = do
 
 printSourcesStats :: StorePathsSources -> IO ()
 printSourcesStats
-  (StorePathsSources _ nixosReleaseCombined nixpkgsRelease nixpkgsReleaseFixed)
-  = mapM_ putStrLn
-    [ "nixos release-combined: "
+  (StorePathsSources
+   storePathsPlain nixosReleaseCombined nixpkgsRelease nixpkgsReleaseFixed) =
+  mapM_ putStrLn
+    [ "store paths (plain)   : "
+      ++ show (length storePathsPlain)
+    , "nixos release-combined: "
       ++ show (length nixosReleaseCombined) ++ " derivation paths"
     , "ofborg nixpkgs release: "
       ++ show (length nixpkgsRelease) ++ " derivation paths / outputs"

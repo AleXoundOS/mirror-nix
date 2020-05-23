@@ -66,7 +66,7 @@ nixInstantiateAttrs :: Nixpkgs -> [NixArg] -> [FilePath] -> [String]
                     -> IO [DrvPath]
 nixInstantiateAttrs nixpkgs nixArgsTup files attrs =
   map decodeUtf8 . B.lines . toStrict . snd
-  <$> (print process >> readProcessStdout (setEnvVars process))
+  <$> readProcessStdout (setEnvVars process)
   where
     process = proc "nix-instantiate"
       $ ["--quiet", "--quiet"]
@@ -120,7 +120,7 @@ nixShowDerivationsARec
   -> IO (HashMap DrvPath DerivationP)
 nixShowDerivationsARec nixpkgs nixArgsTup attrs file =
   forceEitherStr . eitherDecodeStrict' . toStrict
-  <$> readProcessStdout_ process
+  <$> (print process >> readProcessStdout_ process)
   where
     process = proc "nix"
       $ ["show-derivation", "--recursive"]

@@ -99,14 +99,14 @@ run opts = do
     (optESrcInps opts) (optNixpkgs opts) (optSystems opts)
 
   putStrLn "---> nix tools obtained data stats:"
-  printSourcesStats storePathsSourcesObtained
+  printSourcesStats storePathsSourcesObtained{sourceChannel = []}
 
   putStrLn "---> reading data (if plain input files given)"
   storePathsSources <-
     replenishStorePathsSources storePathsSourcesObtained (optESrcInps opts)
 
   putStrLn "---> overall obtained data stats:"
-  printSourcesStats storePathsSourcesObtained
+  printSourcesStats storePathsSources
 
   putStrLn "---> instantiating derivations missing in /nix/store"
   instantiatedDrvsCount <- length <$>
@@ -336,13 +336,16 @@ mkStorePathsSourcesInput :: EitherSourcesInputs -> String -> [String]
                          -> StorePathsSourcesInput
 mkStorePathsSourcesInput eitherSourcesInput nixpkgs systems =
   StorePathsSourcesInput
-  { srcInputChannel = Nothing
+  { srcInputChannel = eitherInputChannel eitherSourcesInput
   , srcInputNixosReleaseCombined =
-      eitherInputToMaybeFile $ eitherInputNixosReleaseCombined eitherSourcesInput
+      eitherInputToMaybeFile
+      $ eitherInputNixosReleaseCombined eitherSourcesInput
   , srcInputNixpkgsRelease =
-      eitherInputToMaybeFile $ eitherInputNixpkgsRelease eitherSourcesInput
+      eitherInputToMaybeFile
+      $ eitherInputNixpkgsRelease eitherSourcesInput
   , srcInputNixpkgsReleaseFixed =
-      eitherInputToMaybeFile $ eitherInputNixpkgsReleaseFixed eitherSourcesInput
+      eitherInputToMaybeFile
+      $ eitherInputNixpkgsReleaseFixed eitherSourcesInput
   , srcInputNixpkgs = nixpkgs
   , srcInputSystems = systems
   }
