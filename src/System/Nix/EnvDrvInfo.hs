@@ -31,5 +31,5 @@ parseEnvDrvInfo txt =
 
 parseOutputs :: Text -> [(OutputName, OutputPath)]
 parseOutputs = map parseOutput . T.split (== ';')
-  where parseOutput txt = ( txt & T.dropWhileEnd (/= '=')
-                          , txt & T.takeWhileEnd (/= '=') & T.dropEnd 1)
+  where parseOutput txt = ( txt & T.dropWhileEnd (/= '=') & T.dropEnd 1
+                          , txt & T.takeWhileEnd (/= '='))
