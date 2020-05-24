@@ -42,7 +42,6 @@ data Opts = Opts
   , optNixpkgs       :: String
   , optSystems       :: [String]
   , optESrcInps      :: EitherSourcesInputs
-  , optInstDrvsDump  :: Maybe FilePath
   , optLogFile       :: Maybe FilePath
   } deriving (Show)
 
@@ -115,15 +114,15 @@ run opts = do
   printSourcesStats storePathsSources
 
   putStrLn "---> instantiating derivations missing in /nix/store"
-  instMissDrvs <-
-    instantiateMissingEnvDrvs (optNixpkgs opts) (optSystems opts) ["<nixpkgs>"]
+  (updatedEnvInfos, updEnvInfosNum) <-
+    instantiateMissingEnvDrvs (optNixpkgs opts) (optSystems opts)
                               (sourceNixpkgsRelease storePathsSources)
   putStrLn
-    $ "---> instantiated " ++ show (length instMissDrvs) ++ " derivations\n"
-  sequenceA_ (flip T.writeFile (T.unlines instMissDrvs) <$> optNarDumpFp opts)
+    $ "---> instantiated " ++ show updEnvInfosNum ++ " derivations\n"
 
   putStrLn "---> combining data"
-  allStoreNames <- getAllPaths storePathsSources
+  allStoreNames <-
+    getAllPaths storePathsSources{sourceNixpkgsRelease = updatedEnvInfos}
   putStrLn
     $ "---> number of discovered (locally) store paths to get: "
     ++ show (Map.size allStoreNames)
@@ -249,11 +248,6 @@ optsParser = Opts
     )
   )
   <*> eitherSourcesInputsParser
-  <*> optional
-  (strOption
-    (long "inst-drvs-dump" <> metavar "INST_DRVS_DUMP"
-      <> help "Path to a list of missing in /nix/store/ \
-              \instantiated derivations."))
   <*> optional
   (strOption
     (long "log-file" <> metavar "LOG_FILE"

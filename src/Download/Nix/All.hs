@@ -87,17 +87,40 @@ getStorePathsSources (StorePathsSourcesInput
     maybe' _ Nothing = return mempty
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
 
--- | Instantiate derivations, missing in /nix/store, but obtained by nix-env
--- (side effect!).
-instantiateMissingEnvDrvs :: Nixpkgs -> [String] -> [FilePath] -> [EnvDrvInfo]
-                          -> IO [DrvPath]
-instantiateMissingEnvDrvs nixpkgs systemsList files envDrvInfos = do
-  missingDrvs <- map (T.unpack . _attrPath) <$>
-    filterM (fmap not . doesFileExist . T.unpack . _drvPath) envDrvInfos
+instantiateMissingEnvDrvs :: Nixpkgs -> [String] -> [EnvDrvInfo]
+                          -> IO ([EnvDrvInfo], Int)
+instantiateMissingEnvDrvs nixpkgs systemsList envDrvInfos = do
+  (presentEnvInfos, missingEnvInfos) <-
+    partitionM (doesFileExist . T.unpack . _drvPath) envDrvInfos
   -- (side effect in /nix/store)
-  batchInstantiateInfos missingDrvs
+  instEnvInfos <- batchInstantiateInfos missingEnvInfos
+  return (presentEnvInfos ++ instEnvInfos, length instEnvInfos)
   where
-    batchInstantiateInfos = nixInstantiateAttrsB 100 nixpkgs args files
+    partitionM _ [] = pure ([], [])
+    partitionM f (x:xs) = do
+      res <- f x
+      (as, bs) <- partitionM f xs
+      pure ([x | res] ++ as, [x | not res] ++ bs)
+    printProgress left want = putStrLn
+      $ "[" ++ show (want - left) ++ "/" ++ show want ++ "]"
+    batchInstantiateInfos :: [EnvDrvInfo] -> IO [EnvDrvInfo]
+    batchInstantiateInfos =
+      batchListProg printProgress 100 (nixInstUpdEnvAttrsB nixpkgs systemsList)
+
+nixInstUpdEnvAttrsB :: Nixpkgs -> [String] -> [EnvDrvInfo] -> IO [EnvDrvInfo]
+nixInstUpdEnvAttrsB nixpkgs systemsList envDrvInfos = do
+  instDrvPaths <- nixInstantiateAttrs
+    nixpkgs args ["<nixpkgs/pkgs/top-level/release.nix>"]
+    (map (T.unpack . _attrPath) envDrvInfos)
+  if length instDrvPaths == length envDrvInfos
+    then return $ zipWith updateEnvInfo envDrvInfos instDrvPaths
+    else error
+         $ "instantiated derivations count /= attrs count\n"
+         ++ show envDrvInfos ++ "\n"
+         ++ show instDrvPaths
+  where
+    updateEnvInfo :: EnvDrvInfo -> DrvPath -> EnvDrvInfo
+    updateEnvInfo envDrvInfo drvPath = envDrvInfo{_drvPath = drvPath}
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
 
 {- | Given 4 sources, get all \/nix\/store\/ paths with corresponding derivation
@@ -139,7 +162,7 @@ getAllPaths (StorePathsSources
     return $ Map.unions
       [drvMapToStoreMap srcNixosReleaseCombined, pathsDiscovered, pathsDirect]
 
--- | All paths from `EnvDrvInfo` with `StoreName`<->`DrvPath` assoc normalized.
+-- | All paths from @EnvDrvInfo@ with @StoreName@<->@DrvPath@ assoc normalized.
 envDrvInfoPaths :: EnvDrvInfo -> [(StoreName, Maybe DrvPath)]
 envDrvInfoPaths envDrvInfo = map (, Just $ _drvPath envDrvInfo) outputs
   where

@@ -8,7 +8,7 @@ module System.Nix.NixToolsProc
   , mkNixStrList
   , nixShowDerivationsARec, nixShowDerivationsARecB
   , nixInstantiateAttrs, nixInstantiateAttrsB
-  , batchList
+  , batchList, batchListProg
   ) where
 
 import Data.ByteString (ByteString)
@@ -41,11 +41,12 @@ mkNixStrList = NixList . bracketify . unwords . map show
 setEnvVars
   :: ProcessConfig stdin stdout stderr -> ProcessConfig stdin stdout stderr
 setEnvVars =
-  setEnv [ ("GC_INITIAL_HEAP_SIZE", gcInitialHeapSize)
-         , ("NIXPKGS_ALLOW_INSECURE", "1")
+  setEnv [ ("GC_INITIAL_HEAP_SIZE",             gcInitialHeapSize)
+         , ("NIXPKGS_ALLOW_BROKEN",             "1")
+         , ("NIXPKGS_ALLOW_INSECURE",           "1")
+         , ("NIXPKGS_ALLOW_UNFREE",             "1")
          , ("NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM", "1")
-         , ("NIXPKGS_ALLOW_BROKEN", "1")
-         , ("NIXPKGS_ALLOW_UNFREE", "1") ]
+         ]
 
 mkNixPath :: Nixpkgs -> [String]
 mkNixPath nixpkgs = ["-I", "nixpkgs=" ++ nixpkgs]
@@ -77,10 +78,12 @@ nixInstantiateAttrs nixpkgs nixArgsTup files attrs =
     mkAttrOption attr = ["-A", attr]
 
 -- | @nix-instantiate@ the given attributes. Works in batch.
-nixInstantiateAttrsB :: Int -> Nixpkgs -> [NixArg] -> [FilePath] -> [String]
-                     -> IO [DrvPath]
-nixInstantiateAttrsB n nixpkgs nixArgsTup files =
-  batchList n (nixInstantiateAttrs nixpkgs nixArgsTup files)
+nixInstantiateAttrsB
+  :: Int -> (Int -> Int -> IO ())
+  -> Nixpkgs -> [NixArg] -> [FilePath] -> [String]
+  -> IO [DrvPath]
+nixInstantiateAttrsB n printProgress nixpkgs nixArgsTup files =
+  batchListProg printProgress n (nixInstantiateAttrs nixpkgs nixArgsTup files)
 
 -- | @nix-instantiate@ the given nix scripts with strict evaluation and JSON
 -- output.
@@ -163,11 +166,17 @@ nixSignPaths storePaths key = runProcess_ process
 
 -- | Batch IO list processing.
 batchList :: (Monad m, Monoid b) => Int -> ([a] -> m b) -> [a] -> m b
-batchList _ _ [] = return mempty
-batchList qtyAtOnce mFunc inpList = go inpList
+batchList = batchListProg (\_ _ -> return ())
+
+-- | Batch IO list processing.
+batchListProg :: (Monad m, Monoid b) =>
+  (Int -> Int -> m ()) -> Int -> ([a] -> m b) -> [a] -> m b
+batchListProg _ _ _ [] = return mempty
+batchListProg printProgress qtyAtOnce mFunc inpList = go inpList
   where
     go [] = return mempty
     go ls = do
       result <- mFunc (take qtyAtOnce ls)
+      printProgress (length ls) (length inpList)
       results <- go (drop qtyAtOnce ls)
       return (result <> results)

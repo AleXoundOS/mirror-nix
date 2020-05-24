@@ -3,9 +3,9 @@ module System.Nix.EnvDrvInfo
   , parseEnvDrvInfo
   ) where
 
+import Data.Function ((&))
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Function ((&))
 
 import System.Nix.Derivation
 
@@ -25,11 +25,9 @@ data EnvDrvInfo = EnvDrvInfo
 parseEnvDrvInfo :: Text -> EnvDrvInfo
 parseEnvDrvInfo txt =
   case T.words txt of
-    [attrPath', drvPath, outputs] ->
-      EnvDrvInfo (stripAttrPathSystem attrPath') drvPath (parseOutputs outputs)
+    [attrPath, drvPath, outputs] ->
+      EnvDrvInfo attrPath drvPath (parseOutputs outputs)
     _ -> error $ "unexpected format: " ++ show (T.unpack txt)
-  where
-    stripAttrPathSystem = T.dropEnd 1 . T.dropWhileEnd (/= '.')
 
 parseOutputs :: Text -> [(OutputName, OutputPath)]
 parseOutputs = map parseOutput . T.split (== ';')
