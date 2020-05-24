@@ -30,7 +30,9 @@ type RealiseCopyStatus = Either String [StoreName]
 realiseAndCopyPaths :: (MonadReader DownloadAppConfig m, MonadIO m)
                     => String -> Map StoreName (Maybe DrvPath, String)
                     -> m RealiseCopyPathsState
-realiseAndCopyPaths signKey inpMap = foldM go initialState $ Map.toList inpMap
+realiseAndCopyPaths signKey inpMap = do
+  putStrLnIO "[done/failed/want]"
+  foldM go initialState $ Map.toList inpMap
   where
     initialState = RealiseCopyPathsState [] (length inpMap) 0 0
     go :: (MonadReader DownloadAppConfig m, MonadIO m)
@@ -71,11 +73,11 @@ processResult
 processResult state inp result =
   case result of
     Left _ ->
-      ( "[FAIL]"
+      ( " [FAIL]"
       , state'{ stFailedQty = stFailedQty state + 1 }
       )
     Right _ ->
-      ( "[DONE]"
+      ( " [DONE]"
       , state'
       )
   where state' = state{ stStatuses = (inp, result) : stStatuses state

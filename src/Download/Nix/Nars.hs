@@ -27,7 +27,9 @@ data DownloadNarsState = DownloadNarsState
 
 dlNars :: (MonadReader DownloadAppConfig m, MonadIO m)
   => [NarInfo] -> m DownloadNarsState
-dlNars ns = foldM go initialState ns
+dlNars ns = do
+  putStrLnIO "[done/failed/want]"
+  foldM go initialState ns
   where
     initialState = DownloadNarsState [] [] (length ns) 0 0
     go :: (MonadReader DownloadAppConfig m, MonadIO m)
@@ -62,13 +64,13 @@ processResult :: DownloadNarsState -> NarInfo -> Either DownloadError FilePath
 processResult state narinfo result =
   case result of
     Left de ->
-      ( "[FAIL]"
+      ( " [FAIL]"
       , state'{ stFailed    = (narinfo, showDownloadError de) : stFailed state
               , stFailedQty = stFailedQty state + 1
               }
       )
     Right fp ->
-      ( "[DONE]"
+      ( " [DONE]"
       , state'{ stStored = fp : stStored state }
       )
   where

@@ -29,7 +29,9 @@ data GetNarInfosState = GetNarInfosState
 -- `StoreName`s. `StoreName`s failed to get immediate `NarInfo` are returned.
 getNarInfos :: (MonadReader DownloadAppConfig m, MonadIO m)
   => Map StoreName (Maybe DrvPath) -> m GetNarInfosState
-getNarInfos storeNamesMap = foldM go initialState $ Map.toList storeNamesMap
+getNarInfos storeNamesMap = do
+  putStrLnIO "[done/failed/want]"
+  foldM go initialState $ Map.toList storeNamesMap
   where
     initialState = GetNarInfosState [] Map.empty mempty (length storeNamesMap) 0
     go :: (MonadReader DownloadAppConfig m, MonadIO m)
@@ -49,12 +51,12 @@ processResult
 processResult state (storeName, mDrvPath) result =
   case result of
     Left errStr ->
-      ( "[FAIL]"
+      ( " [FAIL]"
       , state'{ stFailed =
                   Map.insert storeName (mDrvPath, errStr) $ stFailed state }
       )
     Right (ns, hs) ->
-      ( "[DONE]"
+      ( " [DONE]"
       , state'{ stNarInfos  = ns ++ stNarInfos state
               , stHashCache = hs
               }
