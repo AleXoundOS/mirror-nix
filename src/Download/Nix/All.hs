@@ -150,10 +150,7 @@ getAllPaths (StorePathsSources
                           , Just $ _drv foInfo )
               ) srcNixpkgsReleaseFixed
 
-      drvPaths = nubOrd
-        (  map E._drvPath srcNixpkgsRelease
-        ++ map F._drv     srcNixpkgsReleaseFixed
-        )
+      drvPaths = nubOrd $ map E._drvPath srcNixpkgsRelease
   in do
     -- discover more store paths recursively from derivation paths
     pathsDiscovered <- drvMapToStoreMap
