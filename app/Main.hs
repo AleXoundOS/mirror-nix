@@ -42,6 +42,7 @@ data Opts = Opts
   , optNixpkgs       :: String
   , optSystems       :: [String]
   , optESrcInps      :: EitherSourcesInputs
+  , optInstDrvsDump  :: Maybe FilePath
   , optLogFile       :: Maybe FilePath
   } deriving (Show)
 
@@ -114,11 +115,12 @@ run opts = do
   printSourcesStats storePathsSources
 
   putStrLn "---> instantiating derivations missing in /nix/store"
-  instantiatedDrvsCount <- length <$>
+  instMissDrvs <-
     instantiateMissingEnvDrvs (optNixpkgs opts) (optSystems opts) ["<nixpkgs>"]
                               (sourceNixpkgsRelease storePathsSources)
   putStrLn
-    $ "---> instantiated " ++ show instantiatedDrvsCount ++ " derivations\n"
+    $ "---> instantiated " ++ show (length instMissDrvs) ++ " derivations\n"
+  sequenceA_ (flip T.writeFile (T.unlines instMissDrvs) <$> optNarDumpFp opts)
 
   putStrLn "---> combining data"
   allStoreNames <- getAllPaths storePathsSources
@@ -249,8 +251,14 @@ optsParser = Opts
   <*> eitherSourcesInputsParser
   <*> optional
   (strOption
+    (long "inst-drvs-dump" <> metavar "INST_DRVS_DUMP"
+      <> help "Path to a list of missing in /nix/store/ \
+              \instantiated derivations."))
+  <*> optional
+  (strOption
     (long "log-file" <> metavar "LOG_FILE"
-      <> help "Path to a log output file of this program."))
+      <> help "Path to a log output file of this program. \
+              \Currently disables stdout printing."))
 
 narsDownloadChoiceParser :: Parser NarsDownloadChoice
 narsDownloadChoiceParser =
