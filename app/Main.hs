@@ -42,6 +42,7 @@ data Opts = Opts
   , optNixpkgs       :: String
   , optSystems       :: [String]
   , optESrcInps      :: EitherSourcesInputs
+  , optInstDrvsDump  :: Maybe FilePath
   , optLogFile       :: Maybe FilePath
   } deriving (Show)
 
@@ -119,6 +120,7 @@ run opts = do
                               (sourceNixpkgsRelease storePathsSources)
   putStrLn
     $ "---> instantiated " ++ show (length instDrvPaths) ++ " derivations\n"
+  sequenceA_ (flip T.writeFile (T.unlines instDrvPaths) <$> optNarDumpFp opts)
 
   putStrLn "---> combining data"
   allStoreNames <-
@@ -248,6 +250,11 @@ optsParser = Opts
     )
   )
   <*> eitherSourcesInputsParser
+  <*> optional
+  (strOption
+    (long "inst-drvs-dump" <> metavar "INST_DRVS_DUMP"
+      <> help "Path to a list of missing in /nix/store/ \
+              \instantiated derivations."))
   <*> optional
   (strOption
     (long "log-file" <> metavar "LOG_FILE"
