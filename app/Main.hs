@@ -114,11 +114,11 @@ run opts = do
   printSourcesStats storePathsSources
 
   putStrLn "---> instantiating derivations missing in /nix/store"
-  (updatedEnvInfos, updEnvInfosNum) <-
+  (updatedEnvInfos, instDrvPaths) <-
     instantiateMissingEnvDrvs (optNixpkgs opts) (optSystems opts)
                               (sourceNixpkgsRelease storePathsSources)
   putStrLn
-    $ "---> instantiated " ++ show updEnvInfosNum ++ " derivations\n"
+    $ "---> instantiated " ++ show (length instDrvPaths) ++ " derivations\n"
 
   putStrLn "---> combining data"
   allStoreNames <-

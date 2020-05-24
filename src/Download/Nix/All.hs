@@ -88,13 +88,13 @@ getStorePathsSources (StorePathsSourcesInput
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
 
 instantiateMissingEnvDrvs :: Nixpkgs -> [String] -> [EnvDrvInfo]
-                          -> IO ([EnvDrvInfo], Int)
+                          -> IO ([EnvDrvInfo], [DrvPath])
 instantiateMissingEnvDrvs nixpkgs systemsList envDrvInfos = do
   (presentEnvInfos, missingEnvInfos) <-
     partitionM (doesFileExist . T.unpack . _drvPath) envDrvInfos
   -- (side effect in /nix/store)
   instEnvInfos <- batchInstantiateInfos missingEnvInfos
-  return (presentEnvInfos ++ instEnvInfos, length instEnvInfos)
+  return (presentEnvInfos ++ instEnvInfos, map _drvPath instEnvInfos)
   where
     partitionM _ [] = pure ([], [])
     partitionM f (x:xs) = do
