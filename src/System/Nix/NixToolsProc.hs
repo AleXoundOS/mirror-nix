@@ -179,4 +179,5 @@ batchListProg printProgress qtyAtOnce mFunc inpList = go inpList
       result <- mFunc (take qtyAtOnce ls)
       printProgress (length ls) (length inpList)
       results <- go (drop qtyAtOnce ls)
+      printProgress (length ls) (length inpList)
       return (result <> results)
