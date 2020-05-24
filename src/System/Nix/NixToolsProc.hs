@@ -172,12 +172,14 @@ batchList = batchListProg (\_ _ -> return ())
 batchListProg :: (Monad m, Monoid b) =>
   (Int -> Int -> m ()) -> Int -> ([a] -> m b) -> [a] -> m b
 batchListProg _ _ _ [] = return mempty
-batchListProg printProgress qtyAtOnce mFunc inpList = go inpList
+batchListProg printProgress qtyAtOnce mFunc inpList = do
+  out <- go inpList
+  printProgress (length inpList) (length inpList)
+  return out
   where
     go [] = return mempty
     go ls = do
       result <- mFunc (take qtyAtOnce ls)
       printProgress (length ls) (length inpList)
       results <- go (drop qtyAtOnce ls)
-      printProgress (length ls) (length inpList)
       return (result <> results)
