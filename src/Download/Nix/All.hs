@@ -146,7 +146,7 @@ getAllPaths (StorePathsSources
         $ concatMap envDrvInfoPaths srcNixpkgsRelease
 
       nixpkgsReleaseFixedPathsMap = Map.fromList
-        $ map (\foInfo -> ( forceEitherStr $ parseStoreName $ _path foInfo
+        $ map (\foInfo -> ( forceEitherStr $ stripParseStoreName $ _path foInfo
                           , Just $ _drv foInfo )
               ) srcNixpkgsReleaseFixed
 
