@@ -58,7 +58,7 @@ textStoreName :: StoreName -> Text
 textStoreName (StoreName (hash, drvName)) = hash <> "-" <> drvName
 
 textStoreNamePath :: StoreName -> Text
-textStoreNamePath name = "/nix/store" <> textStoreName name
+textStoreNamePath name = "/nix/store/" <> textStoreName name
 
 showStoreNamePath :: StoreName -> String
 showStoreNamePath = T.unpack . textStoreNamePath
