@@ -164,7 +164,8 @@ envDrvInfoPaths :: EnvDrvInfo -> [(StoreName, Maybe DrvPath)]
 envDrvInfoPaths envDrvInfo = map (, Just $ _drvPath envDrvInfo) outputs
   where
     outputs :: [StoreName]
-    outputs = map (forceEitherStr . parseStoreName . snd) $ _outputs envDrvInfo
+    outputs =
+      map (forceEitherStr . stripParseStoreName . snd) $ _outputs envDrvInfo
 
 -- | Transpose [StoreName] from every DerivationP to keys.
 drvMapToStoreMap :: HashMap DrvPath DerivationP
