@@ -136,10 +136,11 @@ run opts = do
 
   -- TODO calculate estimated total size of nars
 
-  -- dumping store paths missing in remote binary cache
-  sequenceA_ $ (<$> optPathsMissDump opts) $ \pathsMissDump -> do
-    putStrLn $ "---> dumping store paths missing in " ++ optCacheBaseUrl opts
-    TL.writeFile pathsMissDump $ pShowNoColor missingPaths
+  -- dumping urls of all nars
+  sequenceA_ (flip T.writeFile
+              (T.unlines $ map _url narInfos)
+               <$> optNarDump opts
+             )
 
   -- dumping urls of all narinfos
   sequenceA_ (flip T.writeFile
@@ -148,11 +149,10 @@ run opts = do
                <$> optNarInfoDump opts
              )
 
-  -- dumping urls of all nars
-  sequenceA_ (flip T.writeFile
-              (T.unlines $ map _url narInfos)
-               <$> optNarDump opts
-             )
+  -- dumping store paths missing in remote binary cache
+  sequenceA_ $ (<$> optPathsMissDump opts) $ \pathsMissDump -> do
+    putStrLn $ "---> dumping store paths missing in " ++ optCacheBaseUrl opts
+    TL.writeFile pathsMissDump $ pShowNoColor missingPaths
 
   -- realising missing store paths
   sequenceA_ $ (<$> optRealiseChoice opts) $ \signKey -> do
