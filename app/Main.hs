@@ -5,11 +5,9 @@ module Main (main) where
 import Control.Monad.Reader
 import Data.Foldable (sequenceA_)
 import Data.Semigroup ((<>))
-import GHC.IO.Handle (hDuplicateTo)
 import Options.Applicative as OA
 import System.Directory (createDirectoryIfMissing)
 import System.Exit
-import System.IO
 import Text.Pretty.Simple (pPrint, pShowNoColor)
 import qualified Data.ByteString.Char8 as B (readFile)
 import qualified Data.Map as Map
@@ -84,7 +82,6 @@ main = run =<< customExecParser p opts
 
 run :: Opts -> IO ()
 run opts = do
-  logHd <- sequenceA (enableLogging <$> optLogFile opts)
   putStrLn "nix-mirror-cache start"
   when (all ((== Nothing) . ($ optESrcInps opts))
          [ fmap InputData . eitherInputChannel
@@ -174,15 +171,8 @@ run opts = do
     putStrLn $ "---> failed: " ++ show (Download.Nix.Nars.stFailed dlNarsState)
 
   putStrLn "---> finished binary cache download!"
-  sequenceA_ (closeLog <$> logHd)
 
   where
-    enableLogging fp = do
-      hd <- openFile fp WriteMode
-      hDuplicateTo hd stdout
-      hSetBuffering hd LineBuffering
-      return hd
-    closeLog = hClose
     dlAppConfig =
       DownloadAppConfig (optCachePath opts) (T.pack $ optCacheBaseUrl opts)
     doDlNars =
