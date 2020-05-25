@@ -29,7 +29,9 @@ dlNars :: (MonadReader DownloadAppConfig m, MonadIO m)
   => [NarInfo] -> m DownloadNarsState
 dlNars ns = do
   putStrLnIO "GET [done/failed/want] store path"
-  foldM go initialState ns
+  finalState <- foldM go initialState ns
+  printLiveStats finalState
+  return finalState
   where
     initialState = DownloadNarsState [] [] (length ns) 0 0
     go :: (MonadReader DownloadAppConfig m, MonadIO m)

@@ -31,7 +31,9 @@ getNarInfos :: (MonadReader DownloadAppConfig m, MonadIO m)
   => Map StoreName (Maybe DrvPath) -> m GetNarInfosState
 getNarInfos storeNamesMap = do
   putStrLnIO "GET [done/failed/want] store path"
-  foldM go initialState $ Map.toList storeNamesMap
+  finalState <- foldM go initialState $ Map.toList storeNamesMap
+  printLiveStats finalState
+  return finalState
   where
     initialState = GetNarInfosState [] Map.empty mempty (length storeNamesMap) 0
     go :: (MonadReader DownloadAppConfig m, MonadIO m)
