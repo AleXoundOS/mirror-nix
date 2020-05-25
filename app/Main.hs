@@ -130,24 +130,31 @@ run opts = do
     runReaderT (getNarInfos allStoreNames) dlAppConfig
   putStrLn
     $ "--->  store paths narinfo misses" ++ show (length missingPaths)
-  putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's\n"
+
+  -- commented - causes a huge space leak!
+  -- putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's\n"
+
   -- TODO calculate estimated total size of nars
+
+  -- dumping store paths missing in remote binary cache
+  sequenceA_ $ (<$> optPathsMissDump opts) $ \pathsMissDump -> do
+    putStrLn $ "---> dumping store paths missing in " ++ optCacheBaseUrl opts
+    TL.writeFile pathsMissDump $ pShowNoColor missingPaths
+
   -- dumping urls of all narinfos
   sequenceA_ (flip T.writeFile
                (T.unlines
                  $ map (mkNarInfoEndpFromStoreName . _storeName) narInfos)
                <$> optNarInfoDump opts
              )
+
   -- dumping urls of all nars
   sequenceA_ (flip T.writeFile
               (T.unlines $ map _url narInfos)
                <$> optNarDump opts
              )
 
-  sequenceA_ $ (<$> optPathsMissDump opts) $ \pathsMissDump -> do
-    putStrLn $ "---> dumping store paths missing in " ++ optCacheBaseUrl opts
-    TL.writeFile pathsMissDump $ pShowNoColor missingPaths
-
+  -- realising missing store paths
   sequenceA_ $ (<$> optRealiseChoice opts) $ \signKey -> do
       putStrLn "---> realising store paths (that miss narinfo)"
       realiseState <- runReaderT
