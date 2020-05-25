@@ -8,6 +8,7 @@ import Data.Semigroup ((<>))
 import Options.Applicative as OA
 import System.Directory (createDirectoryIfMissing)
 import System.Exit
+import System.IO
 import Text.Pretty.Simple (pPrint, pShowNoColor)
 import qualified Data.ByteString.Char8 as B (readFile)
 import qualified Data.Map as Map
@@ -75,6 +76,7 @@ main = run =<< customExecParser p opts
 
 run :: Opts -> IO ()
 run opts = do
+  hSetBuffering stdout LineBuffering
   putStrLn "nix-mirror-cache start"
   when (all ((== Nothing) . ($ optESrcInps opts))
          [ fmap InputData . eitherInputChannel
