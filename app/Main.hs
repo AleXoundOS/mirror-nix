@@ -44,13 +44,6 @@ data Opts = Opts
   , optLogFile       :: Maybe FilePath
   } deriving (Show)
 
---   , optStreamOrDump  :: StreamOrDump
--- data StreamOrDump = UseStreaming | DumpUrls [DumpUrlsOut]
---   deriving (Show)
-
--- data DumpUrlsOut = DumpNarInfoUrls FilePath | DumpNarUrls FilePath
---   deriving (Show)
-
 data NarsDownloadChoice = NarsDlNew | NarsDlMissingToo | NarsDlNone
   deriving (Eq, Show)
 
