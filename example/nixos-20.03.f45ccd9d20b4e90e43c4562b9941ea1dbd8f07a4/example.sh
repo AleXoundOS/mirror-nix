@@ -2,6 +2,7 @@ NIXPKGS="https://github.com/NixOS/nixpkgs/archive/f45ccd9d20b4e90e43c4562b9941ea
 stack exec -- nix-mirror-cache `
 `--nixpkgs="$NIXPKGS" `
 `--dump-paths="paths.dump" `
+`--dump-paths-miss="paths-miss.dump" `
 `--dump-narinfo-urls="narinfo-urls.dump" --dump-nar-urls="nar-urls.dump" `
 `--store-paths="store-paths" `
 `--release-combined-json="instantiate-release-combined-recursive.json" `

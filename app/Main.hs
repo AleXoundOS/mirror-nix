@@ -32,10 +32,11 @@ import Utils (forceEitherStr)
 data Opts = Opts
   { optCachePath     :: FilePath
   , optNarsDlChoice  :: NarsDownloadChoice
-  , optRealiseChoice :: StoreRealiseChoice
-  , optPathsDumpFp   :: Maybe FilePath
-  , optNarInfoDumpFp :: Maybe FilePath
-  , optNarDumpFp     :: Maybe FilePath
+  , optRealiseChoice :: Maybe SignKey
+  , optPathsDump     :: Maybe FilePath
+  , optPathsMissDump :: Maybe FilePath
+  , optNarInfoDump   :: Maybe FilePath
+  , optNarDump       :: Maybe FilePath
   , optUseStreaming  :: Bool
   , optCacheBaseUrl  :: String
   , optNixpkgs       :: String
@@ -47,9 +48,6 @@ data Opts = Opts
 
 data NarsDownloadChoice = NarsDlNew | NarsDlMissingToo | NarsDlNone
   deriving (Eq, Show)
-
-data StoreRealiseChoice = StoreRealizeOn SignKey | StoreRealizeOff FilePath
-  deriving (Show)
 
 data InputScriptOrData = InputScript FilePath | InputData FilePath
   deriving (Eq, Show)
@@ -124,38 +122,38 @@ run opts = do
   -- dumping all store paths
   sequenceA_ (flip T.writeFile
               (T.unlines $ map textStoreNamePath $ Map.keys allStoreNames)
-               <$> optPathsDumpFp opts
+               <$> optPathsDump opts
              )
 
   putStrLn "---> getting recursively all comprising narinfos"
   (GetNarInfosState narInfos missingPaths _ _ _) <-
     runReaderT (getNarInfos allStoreNames) dlAppConfig
   putStrLn
-    $ "---> " ++ show (length missingPaths) ++ " store paths miss narinfo's"
+    $ "--->  store paths narinfo misses" ++ show (length missingPaths)
   putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's\n"
+  -- TODO calculate estimated total size of nars
   -- dumping urls of all narinfos
   sequenceA_ (flip T.writeFile
                (T.unlines
                  $ map (mkNarInfoEndpFromStoreName . _storeName) narInfos)
-               <$> optNarInfoDumpFp opts
+               <$> optNarInfoDump opts
              )
   -- dumping urls of all nars
   sequenceA_ (flip T.writeFile
               (T.unlines $ map _url narInfos)
-               <$> optNarDumpFp opts
+               <$> optNarDump opts
              )
 
-  case optRealiseChoice opts of
-    StoreRealizeOn signKey -> do
+  sequenceA_ $ (<$> optPathsMissDump opts) $ \pathsMissDump -> do
+    putStrLn $ "---> dumping store paths missing in " ++ optCacheBaseUrl opts
+    TL.writeFile pathsMissDump $ pShowNoColor missingPaths
+
+  sequenceA_ $ (<$> optRealiseChoice opts) $ \signKey -> do
       putStrLn "---> realising store paths (that miss narinfo)"
       realiseState <- runReaderT
         (realiseAndCopyPaths signKey missingPaths) dlAppConfig
       pPrint realiseState
       putStrLn "---> finished store paths realisation"
-    StoreRealizeOff dumpFp -> do
-      putStrLn
-        $ "---> dumping store paths missing in " ++ optCacheBaseUrl opts
-      TL.writeFile dumpFp $ pShowNoColor missingPaths
 
   when doDlNars $ do
     putStrLn "---> getting nars (of every narinfo)"
@@ -196,11 +194,22 @@ optsParser = Opts
    <> value "nix-cache-mirror" <> showDefault
    <> help "Base path for binary cache mirror contents")
   <*> narsDownloadChoiceParser
-  <*> realiseChoiceParser
+  <*> optional
+  (strOption
+   (long "sign-key" <> metavar "SIGN_KEY"
+    <> help "Path to the private signing key for `nix sign-paths -k` \
+            \needed during `nix copy` of realised paths")
+  )
   <*> optional
   (strOption
     (long "dump-paths" <> metavar "STORE_PATHS_FILE"
      <> help "Dump target store paths (except recursive narinfo discovery)")
+  )
+  <*> optional
+  (strOption
+    (long "dump-paths-miss" <> metavar "DUMP_PATHS_MISS"
+     <> help "Path to a file narinfo missing paths get written to. \
+             \Useful to pass this file as store-paths input for realization.")
   )
   <*> optional
   (strOption
@@ -263,17 +272,6 @@ narsDownloadChoiceParser =
    <> help "Do not download any nars")
   <|>
   pure NarsDlNew
-
-realiseChoiceParser :: Parser StoreRealiseChoice
-realiseChoiceParser =
-  StoreRealizeOn <$> strOption
-  (long "sign-key" <> metavar "SIGN_KEY"
-    <> help "Path to the private signing key for `nix sign-paths -k` \
-            \needed during `nix copy` of realised paths")
-  <|>
-  StoreRealizeOff <$> strOption
-  (long "dump-realise-skip" <> metavar "DUMP_REALISE_SKIP"
-    <> help "Path to file for logging store paths that skipped realisation")
 
 eitherSourcesInputsParser :: Parser EitherSourcesInputs
 eitherSourcesInputsParser = EitherSourcesInputs
