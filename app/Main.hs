@@ -120,7 +120,8 @@ run opts = do
                               (sourceNixpkgsRelease storePathsSources)
   putStrLn
     $ "---> instantiated " ++ show (length instDrvPaths) ++ " derivations\n"
-  sequenceA_ (flip T.writeFile (T.unlines instDrvPaths) <$> optNarDumpFp opts)
+  sequenceA_ (flip T.writeFile (T.unlines instDrvPaths)
+              <$> optInstDrvsDump opts)
 
   putStrLn "---> combining data"
   allStoreNames <-
@@ -144,7 +145,7 @@ run opts = do
   sequenceA_ (flip T.writeFile
                (T.unlines
                  $ map (mkNarInfoEndpFromStoreName . _storeName) narInfos)
-               <$> optNarDumpFp opts
+               <$> optNarInfoDumpFp opts
              )
   -- dumping urls of all nars
   sequenceA_ (flip T.writeFile
