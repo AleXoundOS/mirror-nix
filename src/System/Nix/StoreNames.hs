@@ -48,7 +48,7 @@ parseStoreName t = if    all ($ base32hash) [not . T.null, isBase32]
     (base32hash, drvName') = T.splitAt 32 t
     drvName = T.drop 1 drvName'
     isBase32 = T.all (`Set.member` validHashChars)
-    isNotForbidden = T.all (not . flip elem ("\\/" :: String))
+    isNotForbidden = T.all (not . flip elem ("\\/()" :: String))
     validHashChars = Set.fromList "0123456789abcdfghijklmnpqrsvwxyz"
 
 stripParseStoreName :: Text -> Either String StoreName
