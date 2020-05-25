@@ -127,7 +127,7 @@ run opts = do
                <$> optPathsDumpFp opts
              )
 
-  putStrLn "---> getting recursively all comprising narinfo's"
+  putStrLn "---> getting recursively all comprising narinfos"
   (GetNarInfosState narInfos missingPaths _ _ _) <-
     runReaderT (getNarInfos allStoreNames) dlAppConfig
   putStrLn
