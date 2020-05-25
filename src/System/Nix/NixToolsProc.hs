@@ -117,7 +117,10 @@ nixShowDerivationsRec drvPaths = forceEitherStr . eitherDecodeStrict' . toStrict
 
 -- | @nix show-derivation --recursive@ the given derivations paths.
 nixShowDerivationsRecB :: Int -> [DrvPath] -> IO (HashMap DrvPath DerivationP)
-nixShowDerivationsRecB n = batchList n nixShowDerivationsRec
+nixShowDerivationsRecB n = batchListProg printProgress n nixShowDerivationsRec
+  where
+    printProgress left want = putStrLn
+      $ "[" ++ show (want - left) ++ "/" ++ show want ++ "]"
 
 -- | @nix show-derivation --recursive@ derivation paths of the given attributes.
 nixShowDerivationsARec
