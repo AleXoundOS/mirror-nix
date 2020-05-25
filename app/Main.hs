@@ -129,7 +129,7 @@ run opts = do
   (GetNarInfosState narInfos missingPaths _ _ _) <-
     runReaderT (getNarInfos allStoreNames) dlAppConfig
   putStrLn
-    $ "--->  store paths narinfo misses" ++ show (length missingPaths)
+    $ "--->  store paths narinfo misses: " ++ show (length missingPaths)
 
   -- commented - causes a huge space leak!
   -- putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's\n"
