@@ -59,7 +59,7 @@ compactStoreHash = toShort . T.encodeUtf8 . storeNameHash
 
 newStoreNames :: HashCache -> NarInfo -> [StoreName]
 newStoreNames hs =
-  filter (not . (`Set.member` hs) . compactStoreHash) . _references
+  filter ((`Set.notMember` hs) . compactStoreHash) . _references
 
 getNarInfo :: (MonadReader DownloadAppConfig m, MonadIO m)
            => StoreName -> m (Either String NarInfo)
@@ -75,21 +75,26 @@ getNarInfo storeName = downloadNoCheckE (mkNarInfoEndpFromStoreName storeName)
 -- | Is it depth-first variant?
 recurseNarInfoAcc :: (MonadIO m, MonadReader DownloadAppConfig m)
   => ([NarInfo], HashCache) -> NarInfo -> m ([NarInfo], HashCache)
-recurseNarInfoAcc (acc, hs') nn = do
-  (ns, hsNew) <- recurseNarInfo hs' nn
+recurseNarInfoAcc (acc, hs') n = do
+  (ns, hsNew) <- recurseNarInfo hs' n
   return (ns ++ acc, hsNew)
 
 recurseNarInfo :: (MonadReader DownloadAppConfig m, MonadIO m)
                => HashCache -> NarInfo -> m ([NarInfo], HashCache)
 recurseNarInfo hs n =
-  let hsCur = Set.insert (compactStoreHash $ _storeName n) hs
-  in do
-    -- download only new `NarInfo`s this one references, missing in HashCache
-    refNarInfos <- map forceEitherStr <$> mapM getNarInfo (newStoreNames hs n)
-    -- recursively download all referenced `NarInfo`s
-    (ns, hsNew) <- foldM recurseNarInfoAcc ([], hsCur) refNarInfos
-    -- append the input `NarInfo` to the accumulator and return updated hash set
-    return (n : ns, hsNew)
+  let nHash = compactStoreHash $ _storeName n
+      isAlreadyPresent = Set.member nHash hs
+      hsCur = Set.insert nHash hs
+  in
+    if isAlreadyPresent
+    then return ([], hs)
+    else do
+      -- download only new `NarInfo`s this one references, missing in HashCache
+      refNarInfos <- map forceEitherStr <$> mapM getNarInfo (newStoreNames hs n)
+      -- recursively download all referenced `NarInfo`s
+      (ns, hsNew) <- foldM recurseNarInfoAcc ([], hsCur) refNarInfos
+      -- append the input `NarInfo` to the accumulator and return updated cache
+      return (n : ns, hsNew)
 
 -- | Is it breadth-first variant?
 recurseNarInfosB :: (MonadIO m, MonadReader DownloadAppConfig m)
