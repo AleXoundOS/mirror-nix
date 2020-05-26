@@ -34,14 +34,12 @@ type UrlEndpoint = Text
 type HashCache = Set.Set ShortByteString
 
 
-defBcHost :: Url 'Https
-defBcHost = https "cache.nixos.org"
-
 -- | Download a file via https without checksum comparison.
 downloadNoCheckE :: (MonadReader DownloadAppConfig m, MonadIO m)
                  => UrlEndpoint -> m (Either HttpException ByteString)
-downloadNoCheckE endp =
-  downloadAndSave (Right (defBcHost /: endp, mempty)) (T.unpack endp)
+downloadNoCheckE endp = do
+  bcHost <- https <$> asks appBcBaseUrl
+  downloadAndSave (Right (bcHost /: endp, mempty)) (T.unpack endp)
 
 -- | Download a file in a streaming manner, validating its checksum before
 -- renaming from temporary.
