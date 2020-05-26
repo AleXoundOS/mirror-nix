@@ -7,7 +7,6 @@ module Download.Nix.NarInfos
 import Control.Monad.Reader
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.List (nub)
 
 import Download.Nix.BinaryCache
 import Download.Nix.Common
@@ -71,11 +70,8 @@ printLiveStats :: MonadIO m => GetNarInfosState -> m ()
 printLiveStats = putStrIO . showStats . getNums
   where
     getNums state =
-      ( length $ stNarInfos state
-      , length $ nub $ stNarInfos state
-      , length $ stHashCache state
+      ( length $ stHashCache state
       , stCurQty state, length $ stFailed state, stWantQty state )
-    showStats (niQty, niQtyNub, hashCacheLen, cur, failed, want) =
-      "GET [(" ++ show niQty ++ ") (" ++ show hashCacheLen ++ ") "
+    showStats (hashCacheLen, cur, failed, want) =
+      "GET [(" ++ show hashCacheLen ++ ") "
       ++ show cur ++ "/" ++ show failed ++ "/" ++ show want ++ "] "
-      ++ show (niQty == niQtyNub) ++ " "
