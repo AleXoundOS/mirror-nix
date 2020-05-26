@@ -33,7 +33,7 @@ realiseAndCopyPaths :: (MonadReader DownloadAppConfig m, MonadIO m)
 realiseAndCopyPaths signKey inpMap = do
   putStrLnIO "GET [done/failed/want] store path"
   finalState <- foldM go initialState $ Map.toList inpMap
-  printLiveStats finalState
+  printLiveStats finalState >> putStrIO "\n"
   return finalState
   where
     initialState = RealiseCopyPathsState [] (length inpMap) 0 0
