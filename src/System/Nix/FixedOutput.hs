@@ -102,14 +102,19 @@ fixHash fo' =
         HashTypeNull' -> parseSriHash (_hash' fo')
 
 parseSriHash :: Text -> (HashType, Text)
-parseSriHash sriHash = (fromResult $ parse parseJSON (String hashTypeTxt), hash)
+parseSriHash txt
+  | [hashTypeTxt, base32Txt] <- T.split (== ':') txt =
+      (tagHashType hashTypeTxt, base32Txt)
+  | [hashTypeTxt, base64Txt] <- T.split (== '-') txt =
+      (tagHashType hashTypeTxt, base64ToHash base64Txt)
+  | otherwise = error "unknown hash of null type"
   where
-    (hashTypeTxt, hash') = T.break (== '-') sriHash
-    hash = NixBase32.encode $ base64Decode' $ encodeUtf8
-           $ T.drop 1 hash'
-    base64Decode' base64Bs = case Base64.decode base64Bs of
-                               Left errStr -> error errStr
-                               Right bs' -> bs'
+    base64ToHash = NixBase32.encode . base64Decode' . encodeUtf8
+    base64Decode' base64Bs =
+      case Base64.decode base64Bs of
+        Left errStr -> error errStr
+        Right bs' -> bs'
+    tagHashType = fromResult . parse parseJSON . String
     fromResult (Success val) = val
     fromResult (Error str) = error str
 
