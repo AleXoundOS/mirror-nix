@@ -153,7 +153,7 @@ nixStoreRealiseDrvs drvPaths =
   <$> readProcessStdout process
   where
     process = proc "nix-store"
-      $ "--realise" : map T.unpack drvPaths
+      $ "--realise" : "--quiet" : "--quiet" : map T.unpack drvPaths
 
 -- | @nix copy@ store paths to file:// store-uri.
 nixCopyPaths :: [FilePath] -> FilePath -> IO ()
