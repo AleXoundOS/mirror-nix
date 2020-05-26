@@ -149,7 +149,7 @@ getAllPaths (StorePathsSources
   in do
     -- discover more store paths recursively from derivation paths
     pathsDiscovered <- drvMapToStoreMap
-                       <$> nixShowDerivationsRecB 10000 drvPaths
+                       <$> nixShowDerivationsRecB 1000 drvPaths
     -- total discovery union, with always choosing Just DrvPath over Nothing
     return $ Map.unionsWith (<|>)
       [drvMapToStoreMap srcNixosReleaseCombined, pathsDiscovered, pathsDirect]
