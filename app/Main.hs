@@ -183,19 +183,6 @@ run opts = do
         NarsDlMissingToo -> True
         NarsDlNone       -> False
 
-printStats :: [(GetPathStatus, (StoreName, Maybe DrvPath))] -> IO ()
-printStats statuses = do
-  putStrLn "---> obtained store paths stats"
-  putStrLn $ "downloaded (ever) count: " ++ show downloadedCount
-  putStrLn $ "built locally (realised) count: " ++ show realisedCount
-  putStrLn $ "total (successful): " ++ show totalCount
-  putStrLn $ "failed: " ++ show failedCount
-  where
-    downloadedCount = length $ filter ((== DownloadedFromServer) . fst) statuses
-    realisedCount   = length $ filter ((== BuiltLocally) . fst) statuses
-    totalCount      = downloadedCount + realisedCount
-    failedCount     = length $ filter ((== StatusFailed) . fst) statuses
-
 optsParser :: Parser Opts
 optsParser = Opts
   <$> strOption

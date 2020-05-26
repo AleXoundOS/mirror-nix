@@ -6,12 +6,11 @@
 module Download.Nix.All
   ( StorePathsSourcesInput(..), StorePathsSources(..)
   , GetPathStatus(..)
-  , getStorePathsSources, getAllPaths, getStorePathsCache
+  , getStorePathsSources, getAllPaths
   , printSourcesStats
   , instantiateMissingEnvDrvs
   ) where
 
-import Control.Monad.Reader
 import Data.Containers.ListUtils (nubOrd)
 import Data.HashMap.Strict (HashMap)
 import Data.List (foldl')
@@ -22,16 +21,13 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-import Download.Nix.BinaryCache
-import Download.Nix.Common
-import Download.Nix.Realise
 import System.Nix.Derivation (DerivationP) -- lol ?
 import System.Nix.Derivation hiding (DerivationP(..))
 import System.Nix.EnvDrvInfo as E
 import System.Nix.FixedOutput as F
 import System.Nix.NixToolsProc
 import System.Nix.StoreNames
-import Utils (forceEitherStr, putStrIO, putStrLnIO)
+import Utils (forceEitherStr)
 
 
 data StorePathsSourcesInput = StorePathsSourcesInput
@@ -185,59 +181,6 @@ drvMapToStoreMap = HM.foldlWithKey' addPathsFromDerivation Map.empty
     addPathFromDerivation drvPath storeMap storeName =
       Map.insertWith keepOldValue storeName (Just drvPath) storeMap
     keepOldValue = flip const
-
--- | Downloads binary cache for given `StoreName`s. In case of failure
--- tries to build the corresponding derivations locally, for example, unfree.
-getStorePathsCache :: (MonadReader DownloadAppConfig m, MonadIO m)
-  => String -> Map StoreName (Maybe DrvPath)
-  -> m [(GetPathStatus, (StoreName, Maybe DrvPath))]
-getStorePathsCache signKey = fmap fst . foldM add ([], mempty) . Map.toList
-  where
-    add :: (MonadReader DownloadAppConfig m, MonadIO m)
-        => ([(GetPathStatus, (StoreName, Maybe DrvPath))], HashCache)
-        -> (StoreName, Maybe DrvPath)
-        -> m ([(GetPathStatus, (StoreName, Maybe DrvPath))], HashCache)
-    add (resAcc, hs) x =
-      (\(res, hs') -> (res : resAcc, hs')) <$> getPath hs x signKey
-
--- | Downloads binary cache for a single `StoreName`. In case of failure
--- tries to build the corresponding derivation locally, for example, unfree.
-getPath :: (MonadReader DownloadAppConfig m, MonadIO m)
-  => HashCache -> (StoreName, Maybe DrvPath) -> String
-  -> m ((GetPathStatus, (StoreName, Maybe DrvPath)), HashCache)
-getPath hs (storeName, mDrvPath) signKey = do
-  (result, hs') <- go
-  return ((result, (storeName, mDrvPath)), hs')
-    where
-      go = do
-        putStrIO $ "[GET] " ++ showStoreNamePath storeName
-        mHashCache <- undefined hs storeName
-        case mHashCache of
-          Just hs' -> do
-            putStrLnIO " [DONE]"
-            return (DownloadedFromServer, hs')
-          Nothing -> do
-            putStrLnIO " [FAIL]"
-            case mDrvPath of
-              Just drvPath -> do
-                putStrIO $ "[REALISE] " ++ T.unpack drvPath
-                realisedStoreNames <-
-                  realiseAndCopyPath signKey (storeName, (mDrvPath, undefined))
-                case realisedStoreNames of
-                  Left errStr -> do
-                    putStrLnIO "[FAIL]"
-                    putStrLnIO errStr
-                    return (StatusFailed, hs)
-                  Right storeNames -> do
-                    putStrLnIO ":\n"
-                    liftIO $ mapM_ printRealisedStorePath storeNames
-                    return (BuiltLocally, hs)
-              Nothing -> do
-                putStrLnIO "[FAIL]"
-                putStrLnIO "- ^ no derivation path available!"
-                return (StatusFailed, hs)
-      printRealisedStorePath =
-        putStrLn . flip (++) " [DONE]" . (++) "-> " . showStoreNamePath
 
 -- | TODO Analyze store paths income from every source.
 -- analyzeStorePathsIncome ::
