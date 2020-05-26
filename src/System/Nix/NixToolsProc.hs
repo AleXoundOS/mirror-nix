@@ -15,6 +15,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict)
 import Data.HashMap.Strict (HashMap)
 import Data.Text.Encoding (decodeUtf8)
+import System.IO (hFlush, stdout)
 import System.Process.Typed
 import qualified Data.ByteString.Char8 as B (lines)
 import qualified Data.Text as T (unpack)
@@ -119,8 +120,9 @@ nixShowDerivationsRec drvPaths = forceEitherStr . eitherDecodeStrict' . toStrict
 nixShowDerivationsRecB :: Int -> [DrvPath] -> IO (HashMap DrvPath DerivationP)
 nixShowDerivationsRecB n = batchListProg printProgress n nixShowDerivationsRec
   where
-    printProgress left want = putStrLn
-      $ "[" ++ show (want - left) ++ "/" ++ show want ++ "]"
+    printProgress left want = do
+      putStr $ "[" ++ show (want - left) ++ "/" ++ show want ++ "] "
+      hFlush stdout
 
 -- | @nix show-derivation --recursive@ derivation paths of the given attributes.
 nixShowDerivationsARec
