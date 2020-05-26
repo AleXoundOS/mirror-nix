@@ -9,7 +9,7 @@ import Options.Applicative as OA
 import System.Directory (createDirectoryIfMissing)
 import System.Exit
 import System.IO
-import Text.Pretty.Simple (pPrint, pShowNoColor)
+import Text.Pretty.Simple (pShowNoColor)
 import qualified Data.ByteString.Char8 as B (readFile)
 import qualified Data.Map as Map
 import qualified Data.Text as T
@@ -32,7 +32,7 @@ import Utils (forceEitherStr)
 data Opts = Opts
   { optCachePath     :: FilePath
   , optNarsDlChoice  :: NarsDownloadChoice
-  , optRealiseChoice :: Maybe SignKey
+  , optRealiseChoice :: StoreRealiseChoice
   , optPathsDump     :: Maybe FilePath
   , optPathsMissDump :: Maybe FilePath
   , optNarInfoDump   :: Maybe FilePath
@@ -52,7 +52,10 @@ data NarsDownloadChoice = NarsDlNew | NarsDlMissingToo | NarsDlNone
 data InputScriptOrData = InputScript FilePath | InputData FilePath
   deriving (Eq, Show)
 
+type StoreRealiseChoice = Maybe (SignKey, RealiseLogFile)
+
 type SignKey = String
+type RealiseLogFile = String
 
 data EitherSourcesInputs = EitherSourcesInputs
   { eitherInputChannel              :: Maybe FilePath
@@ -131,8 +134,7 @@ run opts = do
   putStrLn
     $ "--->  store paths narinfo misses: " ++ show (length missingPaths)
 
-  -- commented - causes a huge space leak!
-  -- putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's\n"
+  putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's\n"
 
   -- TODO calculate estimated total size of nars
 
@@ -155,12 +157,12 @@ run opts = do
              )
 
   -- realising missing store paths
-  sequenceA_ $ (<$> optRealiseChoice opts) $ \signKey -> do
-      putStrLn "---> realising store paths (that miss narinfo)"
-      realiseState <- runReaderT
-        (realiseAndCopyPaths signKey missingPaths) dlAppConfig
-      pPrint realiseState
-      putStrLn "---> finished store paths realisation"
+  sequenceA_ $ (<$> optRealiseChoice opts) $ \(signKey, realiseLogFp) -> do
+    putStrLn "---> realising store paths (that miss narinfo)"
+    realiseState <- runReaderT
+                    (realiseAndCopyPaths signKey missingPaths) dlAppConfig
+    TL.writeFile realiseLogFp $ pShowNoColor realiseState
+    putStrLn "---> finished store paths realisation"
 
   when doDlNars $ do
     putStrLn "---> getting nars (of every narinfo)"
@@ -201,12 +203,7 @@ optsParser = Opts
    <> value "nix-cache-mirror" <> showDefault
    <> help "Base path for binary cache mirror contents")
   <*> narsDownloadChoiceParser
-  <*> optional
-  (strOption
-   (long "sign-key" <> metavar "SIGN_KEY"
-    <> help "Path to the private signing key for `nix sign-paths -k` \
-            \needed during `nix copy` of realised paths")
-  )
+  <*> realiseChoiceParser
   <*> optional
   (strOption
     (long "dump-paths" <> metavar "STORE_PATHS_FILE"
@@ -279,6 +276,17 @@ narsDownloadChoiceParser =
    <> help "Do not download any nars")
   <|>
   pure NarsDlNew
+
+realiseChoiceParser :: Parser StoreRealiseChoice
+realiseChoiceParser = optional
+  $ curry id
+  <$> strOption
+  (long "sign-key" <> metavar "SIGN_KEY"
+   <> help "Path to the private signing key for `nix sign-paths -k` \
+            \needed during `nix copy` of realised paths")
+  <*> strOption
+  (long "realise-log" <> metavar "REALISE_LOG_FILE"
+   <> help "Path to the realise log file.")
 
 eitherSourcesInputsParser :: Parser EitherSourcesInputs
 eitherSourcesInputsParser = EitherSourcesInputs
