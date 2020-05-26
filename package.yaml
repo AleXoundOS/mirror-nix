@@ -21,6 +21,9 @@ description:         Please see the README on GitHub at <https://github.com/alex
 dependencies:
 - base >= 4.7 && < 5
 
+default-extensions:
+- StrictData
+
 ghc-options:
 - -Wall -Wcompat
 - -Wpartial-fields -Wincomplete-record-updates
