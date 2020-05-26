@@ -8,5 +8,6 @@ stack exec -- nix-mirror-cache `
 `--release-combined-json="instantiate-release-combined-recursive.json" `
 `--ofborg-outpaths-out="nix-env-ofborg-outpaths.txt" `
 `--find-fixed-outputs-json="find-fixed-outputs-pp.json" `
+`--realise-log="realise.log" `
 ` $@ |& tee log.txt
 
