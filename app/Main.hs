@@ -131,7 +131,7 @@ run opts = do
   (GetNarInfosState narInfos missingPaths _ _ _) <-
     runReaderT (getNarInfos allStoreNames) dlAppConfig
   putStrLn
-    $ "--->  store paths narinfo misses: " ++ show (length missingPaths)
+    $ "---> store paths narinfo misses: " ++ show (length missingPaths)
 
   putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's\n"
 
