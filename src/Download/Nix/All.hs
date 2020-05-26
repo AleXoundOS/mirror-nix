@@ -19,7 +19,7 @@ import System.Directory (doesFileExist)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
+import Control.Applicative ((<|>))
 
 import System.Nix.Derivation (DerivationP) -- lol ?
 import System.Nix.Derivation hiding (DerivationP(..))
@@ -27,6 +27,7 @@ import System.Nix.EnvDrvInfo as E
 import System.Nix.FixedOutput as F
 import System.Nix.NixToolsProc
 import System.Nix.StoreNames
+import System.Nix.StoreTuple
 import Utils (forceEitherStr)
 
 
@@ -50,7 +51,7 @@ constitute everything (I hope) you need for offline workflow.
 -}
 data StorePathsSources = StorePathsSources
   -- | store-paths.xz
-  { sourceChannel              :: ![StorePath]
+  { sourceChannel              :: ![StoreTuple]
   -- | nix-instantiate nixos/release-combined.nix
   , sourceNixosReleaseCombined :: !(HashMap DrvPath DerivationP)
   -- | nix-env -qaP .\/outpaths.nix (from ofborg) @ pkgs\/top-level\/release.nix
@@ -63,7 +64,6 @@ data StorePathsSources = StorePathsSources
 data GetPathStatus = DownloadedFromServer | BuiltLocally | StatusFailed
   deriving (Eq, Show)
 
-
 -- | Get collection of (hopefully) all possible store paths and derivations by
 -- the means of calling specific nix tools and scripts.
 getStorePathsSources :: StorePathsSourcesInput -> IO StorePathsSources
@@ -74,7 +74,7 @@ getStorePathsSources (StorePathsSourcesInput
                        fpNixpkgsReleaseFixed
                        nixpkgs systemsList) =
   StorePathsSources
-    <$> maybe' (fmap T.lines . T.readFile)              fpChannel
+    <$> maybe' readStoreTuple                           fpChannel
     <*> maybe' (nixShowDerivationsARec nixpkgs args []) fpNixosReleaseCombined
     <*> maybe' (nixEnvQueryAvail nixpkgs args . (:[]))  fpNixpkgsRelease
     <*> maybe' (instantiateFixedOutputs nixpkgs args)   fpNixpkgsReleaseFixed
@@ -135,8 +135,7 @@ getAllPaths (StorePathsSources
         , nixpkgsReleaseFixedPathsMap
         ]
 
-      channelPathsMap = Map.fromList
-        $ map ((, Nothing) . forceEitherStr . stripParseStoreName) srcChannel
+      channelPathsMap = Map.fromList srcChannel
 
       nixpkgsReleasePathsMap = Map.fromList
         $ concatMap envDrvInfoPaths srcNixpkgsRelease
@@ -151,12 +150,12 @@ getAllPaths (StorePathsSources
     -- discover more store paths recursively from derivation paths
     pathsDiscovered <- drvMapToStoreMap
                        <$> nixShowDerivationsRecB 10000 drvPaths
-    -- discovered paths (always have DrvPath) take precedence over direct
-    return $ Map.unions
+    -- total discovery union, with always choosing Just DrvPath over Nothing
+    return $ Map.unionsWith (<|>)
       [drvMapToStoreMap srcNixosReleaseCombined, pathsDiscovered, pathsDirect]
 
 -- | All paths from @EnvDrvInfo@ with @StoreName@<->@DrvPath@ assoc normalized.
-envDrvInfoPaths :: EnvDrvInfo -> [(StoreName, Maybe DrvPath)]
+envDrvInfoPaths :: EnvDrvInfo -> [StoreTuple]
 envDrvInfoPaths envDrvInfo = map (, Just $ _drvPath envDrvInfo) outputs
   where
     outputs :: [StoreName]

@@ -25,7 +25,7 @@ import System.Nix.Derivation
 import System.Nix.EnvDrvInfo (parseEnvDrvInfo)
 import System.Nix.FixedOutput (decodeFixedOutputsJson)
 import System.Nix.NarInfo
-import System.Nix.StoreNames
+import System.Nix.StoreTuple
 import Utils (forceEitherStr)
 
 
@@ -123,8 +123,7 @@ run opts = do
     $ "---> number of discovered (locally) store paths to get: "
     ++ show (Map.size allStoreNames)
   -- dumping all store paths
-  sequenceA_ (flip T.writeFile
-              (T.unlines $ map textStoreNamePath $ Map.keys allStoreNames)
+  sequenceA_ (flip writeStoreTuple (Map.toList allStoreNames)
                <$> optPathsDump opts
              )
 

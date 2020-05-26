@@ -12,10 +12,11 @@ module System.Nix.StoreNames
 
 
 import Control.Monad ((<=<))
-import qualified Data.Set as Set (fromList, member)
 import Data.Text (Text)
 import Prelude hiding (fail)
+import qualified Data.Set as Set (fromList, member)
 import qualified Data.Text as T
+
 
 -- | comprises absolute filesystem nix store path
 newtype StoreName = StoreName { unStoreName :: (StoreHash, DrvName) }
