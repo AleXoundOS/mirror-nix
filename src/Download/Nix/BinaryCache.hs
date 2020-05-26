@@ -72,13 +72,6 @@ getNarInfo storeName = downloadNoCheckE (mkNarInfoEndpFromStoreName storeName)
       appendFile "narinfo-dl-except.log" $
         "/nix/store/" ++ storeNameStr ++ "\n" ++ show he ++ "\n\n"
 
--- | Is it depth-first variant?
-recurseNarInfoAcc :: (MonadIO m, MonadReader DownloadAppConfig m)
-  => ([NarInfo], HashCache) -> NarInfo -> m ([NarInfo], HashCache)
-recurseNarInfoAcc (acc, hs') n = do
-  (ns, hsNew) <- recurseNarInfo hs' n
-  return (ns ++ acc, hsNew)
-
 recurseNarInfo :: (MonadReader DownloadAppConfig m, MonadIO m)
                => HashCache -> NarInfo -> m ([NarInfo], HashCache)
 recurseNarInfo hs n =
@@ -95,6 +88,13 @@ recurseNarInfo hs n =
       (ns, hsNew) <- foldM recurseNarInfoAcc ([], hsCur) refNarInfos
       -- append the input `NarInfo` to the accumulator and return updated cache
       return (n : ns, hsNew)
+
+-- | Is it depth-first variant?
+recurseNarInfoAcc :: (MonadIO m, MonadReader DownloadAppConfig m)
+  => ([NarInfo], HashCache) -> NarInfo -> m ([NarInfo], HashCache)
+recurseNarInfoAcc (acc, hs) n = do
+  (ns, hs') <- recurseNarInfo hs n
+  return (ns ++ acc, hs')
 
 -- | Is it breadth-first variant?
 recurseNarInfosB :: (MonadIO m, MonadReader DownloadAppConfig m)

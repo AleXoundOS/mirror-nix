@@ -73,8 +73,9 @@ printLiveStats = putStrIO . showStats . getNums
     getNums state =
       ( length $ stNarInfos state
       , length $ nub $ stNarInfos state
+      , length $ stHashCache state
       , stCurQty state, length $ stFailed state, stWantQty state )
-    showStats (niQty, niQtyNub, cur, failed, want) =
-      "GET [(" ++ show niQty ++ ") "
+    showStats (niQty, niQtyNub, hashCacheLen, cur, failed, want) =
+      "GET [(" ++ show niQty ++ ") (" ++ show hashCacheLen ++ ") "
       ++ show cur ++ "/" ++ show failed ++ "/" ++ show want ++ "] "
       ++ show (niQty == niQtyNub) ++ " "
