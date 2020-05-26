@@ -60,7 +60,7 @@ processResult state (storeName, mDrvPath) result =
       )
     Right (ns, hs) ->
       ( " [DONE]"
-      , state'{ stNarInfos  = ns ++ stNarInfos state
+      , state'{ stNarInfos  = ns
               , stHashCache = hs
               }
       )
