@@ -52,7 +52,7 @@ realiseAndCopyPath :: (MonadReader DownloadAppConfig m, MonadIO m)
   => String -> (StoreName, (Maybe DrvPath, String))
   -> m RealiseCopyStatus
 realiseAndCopyPath signKey (storeName, (Just drvPath, _)) = runExceptT $ do
-  realisedNames <- ExceptT (check <$> liftIO (nixStoreRealiseDrvs [drvPath]))
+  realisedNames <- ExceptT (check <$> liftIO (nixStoreRealiseDrv drvPath))
   copy (map showStoreNamePath realisedNames)
   return realisedNames
   where

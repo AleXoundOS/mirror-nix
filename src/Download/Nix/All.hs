@@ -20,6 +20,8 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import Control.Applicative ((<|>))
+import Data.ByteString (ByteString)
+import Data.Either (rights)
 
 import System.Nix.Derivation (DerivationP) -- lol ?
 import System.Nix.Derivation hiding (DerivationP(..))
@@ -101,22 +103,25 @@ instantiateMissingEnvDrvs nixpkgs systemsList envDrvInfos = do
       $ "[" ++ show (want - left) ++ "/" ++ show want ++ "]"
     batchInstantiateInfos :: [EnvDrvInfo] -> IO [EnvDrvInfo]
     batchInstantiateInfos =
-      batchListProg printProgress 100 (nixInstUpdEnvAttrsB nixpkgs systemsList)
+      batchListProg printProgress 100 (nixInstUpdEnvAttrs nixpkgs systemsList)
 
-nixInstUpdEnvAttrsB :: Nixpkgs -> [String] -> [EnvDrvInfo] -> IO [EnvDrvInfo]
-nixInstUpdEnvAttrsB nixpkgs systemsList envDrvInfos = do
+nixInstUpdEnvAttrs :: Nixpkgs -> [String] -> [EnvDrvInfo] -> IO [EnvDrvInfo]
+nixInstUpdEnvAttrs nixpkgs systemsList envDrvInfos = do
   instDrvPaths <- nixInstantiateAttrs
-    nixpkgs args ["<nixpkgs/pkgs/top-level/release.nix>"]
-    (map (T.unpack . _attrPath) envDrvInfos)
+    nixpkgs args ["<nixpkgs/pkgs/top-level/release.nix>"] attrs
   if length instDrvPaths == length envDrvInfos
-    then return $ zipWith updateEnvInfo envDrvInfos instDrvPaths
+    then return $ rights $ zipWith updateEnvInfo envDrvInfos instDrvPaths
     else error
          $ "instantiated derivations count /= attrs count\n"
          ++ show envDrvInfos ++ "\n"
          ++ show instDrvPaths
   where
-    updateEnvInfo :: EnvDrvInfo -> DrvPath -> EnvDrvInfo
-    updateEnvInfo envDrvInfo drvPath = envDrvInfo{_drvPath = drvPath}
+    attrs = map (T.unpack . _attrPath) envDrvInfos
+    updateEnvInfo :: EnvDrvInfo -> Either (Attr, ExitCode, ByteString) DrvPath
+                  -> Either (Attr, ExitCode, ByteString) EnvDrvInfo
+    updateEnvInfo envDrvInfo (Right drvPath) =
+      Right envDrvInfo{_drvPath = drvPath}
+    updateEnvInfo _ (Left err) = Left err
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
 
 {- | Given 4 sources, get all \/nix\/store\/ paths with corresponding derivation
