@@ -5,7 +5,7 @@ module Download.Nix.Realise
   ) where
 
 import Control.Monad.Reader
-import Control.Monad.Trans.Except
+import Data.ByteString (ByteString)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
@@ -24,7 +24,12 @@ data RealiseCopyPathsState = RealiseCopyPathsState
   } deriving (Show)
 
 type RealiseCopyPath = (StoreName, (Maybe DrvPath, String))
-type RealiseCopyStatus = Either String [StoreName]
+type RealiseCopyStatus = Either RealiseError [StoreName]
+
+data RealiseError = RealiseErrorExitFailure (ExitCode, ByteString)
+                  | RealiseErrorMismatch [StoreName]
+                  | RealiseErrorNoDerivation
+  deriving (Show)
 
 
 realiseAndCopyPaths :: (MonadReader DownloadAppConfig m, MonadIO m)
@@ -38,8 +43,7 @@ realiseAndCopyPaths signKey inpMap = do
   where
     initialState = RealiseCopyPathsState [] (length inpMap) 0 0
     go :: (MonadReader DownloadAppConfig m, MonadIO m)
-       => RealiseCopyPathsState -> (StoreName, (Maybe DrvPath, String))
-       -> m RealiseCopyPathsState
+       => RealiseCopyPathsState -> RealiseCopyPath -> m RealiseCopyPathsState
     go state inp@(storeName, _) = do
       printLiveStats state >> putStrIO (showStoreNamePath storeName)
       (statusStr, state') <-
@@ -49,28 +53,31 @@ realiseAndCopyPaths signKey inpMap = do
 
 -- | Realise derivation and `nix copy` output store paths.
 realiseAndCopyPath :: (MonadReader DownloadAppConfig m, MonadIO m)
-  => String -> (StoreName, (Maybe DrvPath, String))
-  -> m RealiseCopyStatus
-realiseAndCopyPath signKey (storeName, (Just drvPath, _)) = runExceptT $ do
-  realisedNames <- ExceptT (check <$> liftIO (nixStoreRealiseDrv drvPath))
-  copy (map showStoreNamePath realisedNames)
-  return realisedNames
+  => String -> RealiseCopyPath -> m RealiseCopyStatus
+realiseAndCopyPath signKey (storeName, (Just drvPath, _)) = do
+  realiseRes <- liftIO (nixStoreRealiseDrv drvPath)
+  case realiseRes of
+    Left err -> return $ Left $ RealiseErrorExitFailure err
+    Right realisedNames ->
+      if storeName `elem` realisedNames
+      then do
+        copy $ map showStoreNamePath realisedNames
+        return $ Right realisedNames
+      else return $ Left $ RealiseErrorMismatch realisedNames
   where
-    check storeNames =
-      if storeName `elem` storeNames
-      then Right storeNames
-      else Left $ "realised " ++ show storeNames ++ "\nwhile wanted " ++
-           showStoreNamePath storeName ++ " is missing!"
     copy storePaths = do
       liftIO $ nixSignPaths storePaths signKey
       basePath <- asks appCachePath
       liftIO $ nixCopyPaths storePaths basePath
-realiseAndCopyPath _ (_, (Nothing, _)) = return $ Left "has no derivation"
+realiseAndCopyPath _ (_, (Nothing, _)) = return $ Left RealiseErrorNoDerivation
+
+-- textRealiseError :: RealiseError -> Text
+-- textRealiseError = undefined
+-- "realised " ++ show storeNames ++ "\nwhile wanted " ++
+--            showStoreNamePath storeName ++ " is missing!"
 
 processResult
-  :: RealiseCopyPathsState
-  -> (StoreName, (Maybe DrvPath, String))
-  -> RealiseCopyStatus
+  :: RealiseCopyPathsState -> RealiseCopyPath -> RealiseCopyStatus
   -> (String, RealiseCopyPathsState)
 processResult state inp result =
   case result of
