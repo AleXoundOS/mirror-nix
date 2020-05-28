@@ -15,6 +15,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as T
 import qualified Data.Text.IO as T (readFile, writeFile)
 import qualified Data.Text.Lazy.IO as TL (writeFile)
+import Data.Either (partitionEithers)
 
 import Download.Nix.All
 import Download.Nix.Common (DownloadAppConfig(..))
@@ -42,7 +43,7 @@ data Opts = Opts
   , optNixpkgs       :: String
   , optSystems       :: [String]
   , optESrcInps      :: EitherSourcesInputs
-  , optInstDrvsDump  :: Maybe FilePath
+  , optInstFailDump  :: Maybe FilePath
   , optLogFile       :: Maybe FilePath
   } deriving (Show)
 
@@ -108,13 +109,14 @@ run opts = do
   printSourcesStats storePathsSources
 
   putStrLn "---> instantiating derivations missing in /nix/store"
-  (updatedEnvInfos, instDrvPaths) <-
-    instantiateMissingEnvDrvs (optNixpkgs opts) (optSystems opts)
-                              (sourceNixpkgsRelease storePathsSources)
+  (instAttrsErrs, updatedEnvInfos) <- partitionEithers <$>
+    instantiateEnvDrvs (optNixpkgs opts) (optSystems opts)
+                       (sourceNixpkgsRelease storePathsSources)
   putStrLn
-    $ "---> instantiated " ++ show (length instDrvPaths) ++ " derivations\n"
-  sequenceA_ (flip T.writeFile (T.unlines instDrvPaths)
-              <$> optInstDrvsDump opts)
+    $ "---> instantiation failed attrs count: " ++ show (length instAttrsErrs)
+  sequenceA_ (flip TL.writeFile (pShowNoColor instAttrsErrs)
+              <$> optInstFailDump opts)
+  putStr "\n"
 
   putStrLn "---> combining data"
   allStoreNames <-
@@ -238,9 +240,8 @@ optsParser = Opts
   <*> eitherSourcesInputsParser
   <*> optional
   (strOption
-    (long "inst-drvs-dump" <> metavar "INST_DRVS_DUMP"
-      <> help "Path to a list of missing in /nix/store/ \
-              \instantiated derivations."))
+    (long "inst-fail-dump" <> metavar "INST_FAIL_DUMP"
+      <> help "Path to a dump of instantiation failed attrs."))
   <*> optional
   (strOption
     (long "log-file" <> metavar "LOG_FILE"

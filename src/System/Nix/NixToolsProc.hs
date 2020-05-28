@@ -8,7 +8,7 @@ module System.Nix.NixToolsProc
   , mkNixStrList
   , nixShowDerivationsARec, nixShowDerivationsARecB
   , nixInstantiateAttrs, nixInstantiateAttrsB
-  , ExitCode(..), Attr
+  , ExitCode(..), Attr, NixInstAttrErr
   , batchList, batchListProg
   ) where
 
@@ -32,6 +32,7 @@ import Utils (forceEitherStr)
 type Nixpkgs = String
 type NixArg = (String, String)
 type Attr = String
+type NixInstAttrErr = (Attr, ExitCode, ByteString)
 newtype NixList = NixList {unNixList :: String}
 
 
@@ -49,7 +50,7 @@ setEnvVars =
   setEnv [ ("GC_INITIAL_HEAP_SIZE",             gcInitialHeapSize)
          , ("NIXPKGS_ALLOW_INSECURE",           "1")
          , ("NIXPKGS_ALLOW_UNFREE",             "1")
-         , ("NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM", "1")
+         , ("NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM", "1") -- TODO remove?
          ]
 
 mkNixPath :: Nixpkgs -> [String]
@@ -69,7 +70,7 @@ nixInstantiate nixpkgs nixArgsTup files = map decodeUtf8 . B.lines . toStrict
 
 -- | @nix-instantiate@ the given attributes. Works in batch.
 nixInstantiateAttrs :: Nixpkgs -> [NixArg] -> [FilePath] -> [Attr]
-                    -> IO [Either (Attr, ExitCode, ByteString) DrvPath]
+                    -> IO [Either NixInstAttrErr DrvPath]
 nixInstantiateAttrs nixpkgs nixArgsTup files attrs = do
   (exitCode, out, err) <- readProcess (setEnvVars process)
   case (exitCode, attrs) of
