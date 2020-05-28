@@ -41,16 +41,18 @@ mkStoreHash t =
   fmap (fst . unStoreName) . parseStoreName =<< stripNixStorePrefix t
 
 parseStoreName :: Text -> Either String StoreName
-parseStoreName t = if    all ($ base32hash) [not . T.null, isBase32]
-                      && all ($ drvName)    [not . T.null, isNotForbidden]
+parseStoreName t = if    all ($ base32hash) [not . T.null, areBase32]
+                      && all ($ drvName')   [not . T.null, not . areForbidden]
                    then Right $ StoreName (base32hash, drvName)
                    else Left $ "cannot parse StoreName: " ++ T.unpack t
   where
-    (base32hash, drvName') = T.splitAt 32 t
-    drvName = T.drop 1 drvName'
-    isBase32 = T.all (`Set.member` validHashChars)
-    isNotForbidden = T.all (not . flip elem ("\\/()\"\'|" :: String))
+    (base32hash, drvName) = T.splitAt 32 t
+    drvName' = T.dropWhileEnd isForbidden $ T.drop 1 drvName
+    areBase32 = T.all (`Set.member` validHashChars)
     validHashChars = Set.fromList "0123456789abcdfghijklmnpqrsvwxyz"
+    isForbidden = (`notElem` forbiddenChars)
+    areForbidden = T.all isForbidden
+    forbiddenChars = Set.fromList "\\/()\"\'|"
 
 stripParseStoreName :: Text -> Either String StoreName
 stripParseStoreName = parseStoreName <=< stripNixStorePrefix
