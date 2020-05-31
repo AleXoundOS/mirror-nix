@@ -9,7 +9,6 @@ module Download.Nix.All
   , instantiateEnvDrvs
   ) where
 
-import Control.Applicative ((<|>))
 import Data.Containers.ListUtils (nubOrd)
 import Data.HashMap.Strict (HashMap)
 import Data.Map.Strict (Map)
@@ -133,13 +132,15 @@ getAllPaths (StorePathsSources
         | foInfo <- srcNixpkgsReleaseFixed
         ]
 
-      drvPaths = nubOrd $ map E._drvPath srcNixpkgsRelease
+      drvPaths = nubOrd
+        $ map E._drvPath srcNixpkgsRelease
+        ++ [drvPath | (_, Just (drvPath, _)) <- srcChannel]
   in do
     -- discover more store paths recursively from derivation paths
     pathsDiscovered <- drvMapToStoreMap
                        <$> nixShowDerivationsRecB 1000 drvPaths
     -- total discovery union, with always choosing Just DrvPath over Nothing
-    return $ Map.unionsWith (<|>)
+    return $ Map.unionsWith updateExtra
       [drvMapToStoreMap srcNixosReleaseCombined, pathsDiscovered, pathsDirect]
 
 -- | All paths from @EnvDrvInfo@.
@@ -161,17 +162,19 @@ drvMapToStoreMap =
     drvToStore (drvPath, drv) =
       [ (storeName, Just (drvPath, isFixed))
       | (storeName, isFixed) <- allDerivationPaths drv ]
-    updateExtra :: Maybe StoreExtra -> Maybe StoreExtra -> Maybe StoreExtra
-    updateExtra old@(Just _) new@(Just _) =
-      chooseOn ((== True) . snd) <$> old <*> new
-    updateExtra old@(Just _) Nothing = old
-    updateExtra Nothing new@(Just _) = new
-    updateExtra Nothing Nothing = Nothing
-    chooseOn :: (a -> Bool) -> a -> a -> a
-    chooseOn p a b
-      | p a = a
-      | p b = b
-      | otherwise = a
+
+updateExtra :: Maybe StoreExtra -> Maybe StoreExtra -> Maybe StoreExtra
+updateExtra old@(Just _) new@(Just _) =
+  chooseOn ((== True) . snd) <$> old <*> new
+updateExtra old@(Just _) Nothing = old
+updateExtra Nothing new@(Just _) = new
+updateExtra Nothing Nothing = Nothing
+
+chooseOn :: (a -> Bool) -> a -> a -> a
+chooseOn p a b
+  | p a = a
+  | p b = b
+  | otherwise = a
 
 -- | TODO Analyze store paths income from every source.
 -- analyzeStorePathsIncome ::

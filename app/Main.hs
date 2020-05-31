@@ -138,7 +138,7 @@ run opts = do
   putStrLn
     $ "---> store paths narinfo misses: " ++ show (length missingPaths)
 
-  putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's\n"
+  putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's"
 
   -- TODO calculate estimated total size of nars
   -- dumping store paths missing in remote binary cache
