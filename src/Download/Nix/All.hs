@@ -11,7 +11,6 @@ module Download.Nix.All
   ) where
 
 import Control.Monad (filterM, (<=<))
-import Data.Containers.ListUtils (nubOrd)
 import Data.Either (lefts, rights)
 import Data.HashMap.Strict (HashMap)
 import Data.List (intercalate, partition)
@@ -149,8 +148,8 @@ getAllPaths (StorePathsSources
         | foInfo <- srcNixpkgsReleaseFixed
         ]
 
-      drvPaths = nubOrd
-        $ map E._drvPath srcNixpkgsRelease
+      drvPaths =
+        map E._drvPath srcNixpkgsRelease
         -- in case we are given plain derivation paths as well
         ++ [ drvPath
            | (_, Just (drvPath, isFixed)) <- srcChannel, isFixed /= DrvIsFixed]
@@ -164,11 +163,11 @@ getAllPaths (StorePathsSources
 
 -- | All paths from @EnvDrvInfo@.
 envDrvInfoPaths :: EnvDrvInfo -> [StoreTuple]
-envDrvInfoPaths envDrvInfo = zip storeNames (repeat Nothing)
+envDrvInfoPaths envDrvInfo = map mkStoreTuple $ _outputs envDrvInfo
   where
-    storeNames :: [StoreName]
-    storeNames =
-      map (forceEitherStr . stripParseStoreName . snd) $ _outputs envDrvInfo
+    mkStoreTuple (_, outPath) =
+      ( forceEitherStr $ stripParseStoreName outPath
+      , Just (_drvPath envDrvInfo, DrvFixedUnknown) )
 
 -- | Extract all paths mentioned in any way from the given derivations. Not all
 -- paths returned from @allDerivationPaths@ contain a genuine @DrvIsFixed@
