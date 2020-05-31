@@ -90,7 +90,8 @@ instantiateEnvDrvs force nixpkgs systemsList =
     printProgress left want = putStrLn
       $ "[" ++ show (want - left) ++ "/" ++ show want ++ "]"
     filterEnvInfos True = return
-    filterEnvInfos False = filterM (doesFileExist . T.unpack . _drvPath)
+    filterEnvInfos False =
+      filterM (fmap not . doesFileExist . T.unpack . _drvPath)
 
 nixInstEnvAttrs :: Nixpkgs -> [String] -> [EnvDrvInfo] -> IO [NixInstAttrErr]
 nixInstEnvAttrs nixpkgs systemsList envDrvInfos = do
