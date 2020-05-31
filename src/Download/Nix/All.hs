@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE TupleSections #-}
 
 module Download.Nix.All
   ( StorePathsSourcesInput(..), StorePathsSources(..)
@@ -11,7 +12,7 @@ module Download.Nix.All
 
 import Control.Monad (filterM, (<=<))
 import Data.Containers.ListUtils (nubOrd)
-import Data.Either (lefts)
+import Data.Either (lefts, rights)
 import Data.HashMap.Strict (HashMap)
 import Data.Map.Strict (Map)
 import System.Directory (doesFileExist)
@@ -95,15 +96,19 @@ nixInstEnvAttrs :: Nixpkgs -> [String] -> [EnvDrvInfo] -> IO [NixInstAttrErr]
 nixInstEnvAttrs nixpkgs systemsList envDrvInfos = do
   instDrvResults <- nixInstantiateAttrs
     nixpkgs args ["<nixpkgs/pkgs/top-level/release.nix>"] attrs
-  if length instDrvResults == length envDrvInfos
+  if check instDrvResults
     then return $ lefts instDrvResults
     else error
-         $ "instantiated derivations count /= attrs count\n"
+         $ "instantiated derivations do not match expected\n"
          ++ show envDrvInfos ++ "\n"
          ++ show instDrvResults
   where
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
     attrs = map (T.unpack . _attrPath) envDrvInfos
+    check instDrvResults =
+      all (uncurry (==))
+      $ rights
+      $ zipWith (\a b -> (, b) <$> a) instDrvResults (map _drvPath envDrvInfos)
 
 {- | Given 4 sources, get all \/nix\/store\/ paths with corresponding derivation
 paths (if possible) with the help of nix cli tools.
