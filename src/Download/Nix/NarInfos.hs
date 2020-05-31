@@ -80,5 +80,5 @@ printLiveStats = putStrIO . showStats . getNums
       ( length $ stHashCache state
       , stCurQty state, length $ stFailed state, stWantQty state )
     showStats (hashCacheLen, cur, failed, want) =
-      "GET [(" ++ show hashCacheLen ++ ") "
+      "NARINFO GET [(" ++ show hashCacheLen ++ ") "
       ++ show cur ++ "/" ++ show failed ++ "/" ++ show want ++ "] "

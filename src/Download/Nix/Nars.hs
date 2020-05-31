@@ -83,4 +83,4 @@ printLiveStats = putStrIO . showStats . getNums
   where
     getNums state = (stCurQty state, length $ stFailed state, stWantQty state)
     showStats (cur, failed, want) =
-      "GET [" ++ show cur ++ "/" ++ show failed ++ "/" ++ show want ++ "] "
+      "NAR GET [" ++ show cur ++ "/" ++ show failed ++ "/" ++ show want ++ "] "
