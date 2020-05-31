@@ -1,11 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Download.Nix.All
   ( StorePathsSourcesInput(..), StorePathsSources(..)
-  , GetPathStatus(..)
   , getStorePathsSources, getAllPaths
   , printSourcesStats
   , instantiateEnvDrvs
@@ -14,7 +12,6 @@ module Download.Nix.All
 import Control.Applicative ((<|>))
 import Data.Containers.ListUtils (nubOrd)
 import Data.HashMap.Strict (HashMap)
-import Data.List (foldl')
 import Data.Map.Strict (Map)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
@@ -59,9 +56,6 @@ data StorePathsSources = StorePathsSources
   , sourceNixpkgsReleaseFixed  :: ![FixedOutputInfo]
   }
   deriving (Show)
-
-data GetPathStatus = DownloadedFromServer | BuiltLocally | StatusFailed
-  deriving (Eq, Show)
 
 -- | Get collection of (hopefully) all possible store paths and derivations by
 -- the means of calling specific nix tools and scripts.
@@ -115,7 +109,7 @@ nixInstUpdEnvAttrs nixpkgs systemsList envDrvInfos = do
 {- | Given 4 sources, get all \/nix\/store\/ paths with corresponding derivation
 paths (if possible) with the help of nix cli tools.
 -}
-getAllPaths :: StorePathsSources -> IO (Map StoreName (Maybe DrvPath))
+getAllPaths :: StorePathsSources -> IO (Map StoreName (Maybe StoreExtra))
 getAllPaths (StorePathsSources
               srcChannel
               srcNixosReleaseCombined
@@ -134,9 +128,10 @@ getAllPaths (StorePathsSources
         $ concatMap envDrvInfoPaths srcNixpkgsRelease
 
       nixpkgsReleaseFixedPathsMap = Map.fromList
-        $ map (\foInfo -> ( forceEitherStr $ stripParseStoreName $ _path foInfo
-                          , Just $ _drv foInfo )
-              ) srcNixpkgsReleaseFixed
+        [ ( forceEitherStr $ stripParseStoreName $ _path foInfo
+          , Just (_drv foInfo, True) )
+        | foInfo <- srcNixpkgsReleaseFixed
+        ]
 
       drvPaths = nubOrd $ map E._drvPath srcNixpkgsRelease
   in do
@@ -147,32 +142,36 @@ getAllPaths (StorePathsSources
     return $ Map.unionsWith (<|>)
       [drvMapToStoreMap srcNixosReleaseCombined, pathsDiscovered, pathsDirect]
 
--- | All paths from @EnvDrvInfo@ with @StoreName@<->@DrvPath@ assoc normalized.
+-- | All paths from @EnvDrvInfo@.
 envDrvInfoPaths :: EnvDrvInfo -> [StoreTuple]
-envDrvInfoPaths envDrvInfo = map (, Just $ _drvPath envDrvInfo) outputs
+envDrvInfoPaths envDrvInfo = zip storeNames (repeat Nothing)
   where
-    outputs :: [StoreName]
-    outputs =
+    storeNames :: [StoreName]
+    storeNames =
       map (forceEitherStr . stripParseStoreName . snd) $ _outputs envDrvInfo
 
--- | Transpose [StoreName] from every DerivationP to keys.
+-- | Extract all paths mentioned in any way from the given derivations. Not all
+-- paths returned from @allDerivationPaths@ contain a genuine @DrvIsFixed@
+-- value. So an alternative composition function is used for duplicate keys.
 drvMapToStoreMap :: HashMap DrvPath DerivationP
-                 -> Map StoreName (Maybe DrvPath)
-drvMapToStoreMap = HM.foldlWithKey' addPathsFromDerivation Map.empty
+                 -> Map StoreName (Maybe StoreExtra)
+drvMapToStoreMap =
+  Map.fromListWith updateExtra . concatMap drvToStore . HM.toList
   where
-    -- insert [StoreName] of a single derivation as keys
-    addPathsFromDerivation
-      :: Map StoreName (Maybe DrvPath) -> DrvPath -> DerivationP
-      -> Map StoreName (Maybe DrvPath)
-    addPathsFromDerivation storeMap drvPath =
-      foldl' (addPathFromDerivation drvPath) storeMap . allDerivationPaths
-    -- insert StoreName as key (ignoring duplicate keys)
-    addPathFromDerivation
-      :: DrvPath -> Map StoreName (Maybe DrvPath) -> StoreName
-      -> Map StoreName (Maybe DrvPath)
-    addPathFromDerivation drvPath storeMap storeName =
-      Map.insertWith keepOldValue storeName (Just drvPath) storeMap
-    keepOldValue = flip const
+    drvToStore (drvPath, drv) =
+      [ (storeName, Just (drvPath, isFixed))
+      | (storeName, isFixed) <- allDerivationPaths drv ]
+    updateExtra :: Maybe StoreExtra -> Maybe StoreExtra -> Maybe StoreExtra
+    updateExtra old@(Just _) new@(Just _) =
+      chooseOn ((== True) . snd) <$> old <*> new
+    updateExtra old@(Just _) Nothing = old
+    updateExtra Nothing new@(Just _) = new
+    updateExtra Nothing Nothing = Nothing
+    chooseOn :: (a -> Bool) -> a -> a -> a
+    chooseOn p a b
+      | p a = a
+      | p b = b
+      | otherwise = a
 
 -- | TODO Analyze store paths income from every source.
 -- analyzeStorePathsIncome ::

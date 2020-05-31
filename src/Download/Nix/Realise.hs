@@ -10,20 +10,19 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
 import Download.Nix.Common
-import System.Nix.Derivation hiding (DerivationP(..))
 import System.Nix.NixToolsProc
 import System.Nix.StoreNames
+import System.Nix.StoreTuple
 import Utils
 
 
 data RealiseCopyPathsState = RealiseCopyPathsState
-  { stStatuses  :: [(RealiseCopyPath, RealiseCopyStatus)]
+  { stStatuses  :: [(StoreTuple, RealiseCopyStatus)]
   , stWantQty   :: Int
   , stFailedQty :: Int
   , stCurQty    :: Int
   } deriving (Show)
 
-type RealiseCopyPath = (StoreName, (Maybe DrvPath, String))
 type RealiseCopyStatus = Either RealiseError [StoreName]
 
 data RealiseError = RealiseErrorExitFailure (ExitCode, ByteString)
@@ -33,28 +32,27 @@ data RealiseError = RealiseErrorExitFailure (ExitCode, ByteString)
 
 
 realiseAndCopyPaths :: (MonadReader DownloadAppConfig m, MonadIO m)
-                    => String -> Map StoreName (Maybe DrvPath, String)
-                    -> m RealiseCopyPathsState
-realiseAndCopyPaths signKey inpMap = do
+  => String -> Map StoreName (Maybe StoreExtra) -> m RealiseCopyPathsState
+realiseAndCopyPaths signKey targetStoreMap = do
   putStrLnIO "GET [done/failed/want] store path"
-  finalState <- foldM go initialState $ Map.toList inpMap
+  finalState <- foldM go initialState $ Map.toList targetStoreMap
   printLiveStats finalState >> putStrIO "\n"
   return finalState
   where
-    initialState = RealiseCopyPathsState [] (length inpMap) 0 0
+    initialState = RealiseCopyPathsState [] (length targetStoreMap) 0 0
     go :: (MonadReader DownloadAppConfig m, MonadIO m)
-       => RealiseCopyPathsState -> RealiseCopyPath -> m RealiseCopyPathsState
-    go state inp@(storeName, _) = do
+       => RealiseCopyPathsState -> StoreTuple -> m RealiseCopyPathsState
+    go state storeTuple@(storeName, _) = do
       printLiveStats state >> putStrIO (showStoreNamePath storeName)
       (statusStr, state') <-
-        processResult state inp <$> realiseAndCopyPath signKey inp
+        processResult state storeTuple <$> realiseAndCopyPath signKey storeTuple
       putStrLnIO statusStr
       return state'
 
 -- | Realise derivation and `nix copy` output store paths.
 realiseAndCopyPath :: (MonadReader DownloadAppConfig m, MonadIO m)
-  => String -> RealiseCopyPath -> m RealiseCopyStatus
-realiseAndCopyPath signKey (storeName, (Just drvPath, _)) = do
+  => String -> StoreTuple -> m RealiseCopyStatus
+realiseAndCopyPath signKey (storeName, Just (drvPath, _)) = do
   realiseRes <- liftIO (nixStoreRealiseDrv drvPath)
   case realiseRes of
     Left err -> return $ Left $ RealiseErrorExitFailure err
@@ -69,7 +67,7 @@ realiseAndCopyPath signKey (storeName, (Just drvPath, _)) = do
       liftIO $ nixSignPaths storePaths signKey
       basePath <- asks appCachePath
       liftIO $ nixCopyPaths storePaths basePath
-realiseAndCopyPath _ (_, (Nothing, _)) = return $ Left RealiseErrorNoDerivation
+realiseAndCopyPath _ (_, Nothing) = return $ Left RealiseErrorNoDerivation
 
 -- textRealiseError :: RealiseError -> Text
 -- textRealiseError = undefined
@@ -77,9 +75,9 @@ realiseAndCopyPath _ (_, (Nothing, _)) = return $ Left RealiseErrorNoDerivation
 --            showStoreNamePath storeName ++ " is missing!"
 
 processResult
-  :: RealiseCopyPathsState -> RealiseCopyPath -> RealiseCopyStatus
+  :: RealiseCopyPathsState -> StoreTuple -> RealiseCopyStatus
   -> (String, RealiseCopyPathsState)
-processResult state inp result =
+processResult state tg result =
   case result of
     Left _ ->
       ( " [FAIL]"
@@ -89,7 +87,7 @@ processResult state inp result =
       ( " [DONE]"
       , state'
       )
-  where state' = state{ stStatuses = (inp, result) : stStatuses state
+  where state' = state{ stStatuses = (tg, result) : stStatuses state
                       , stCurQty = stCurQty state + 1
                       }
 

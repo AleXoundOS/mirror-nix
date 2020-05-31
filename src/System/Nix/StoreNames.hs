@@ -60,7 +60,7 @@ stripParseStoreName = parseStoreName <=< stripNixStorePrefix
 textStoreName :: StoreName -> Text
 textStoreName (StoreName (hash, drvName)) = hash <> "-" <> drvName
 
-textStoreNamePath :: StoreName -> Text
+textStoreNamePath :: StoreName -> StorePath
 textStoreNamePath name = "/nix/store/" <> textStoreName name
 
 showStoreNamePath :: StoreName -> String

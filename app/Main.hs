@@ -3,7 +3,9 @@
 module Main (main) where
 
 import Control.Monad.Reader
+import Data.Either (partitionEithers)
 import Data.Foldable (sequenceA_)
+import Data.Maybe (maybe)
 import Data.Semigroup ((<>))
 import Options.Applicative as OA
 import System.Directory (createDirectoryIfMissing)
@@ -14,8 +16,8 @@ import qualified Data.ByteString.Char8 as B (readFile)
 import qualified Data.Map as Map
 import qualified Data.Text as T
 import qualified Data.Text.IO as T (readFile, writeFile)
-import qualified Data.Text.Lazy.IO as TL (writeFile)
-import Data.Either (partitionEithers)
+import qualified Data.Text.Lazy as TL (pack)
+import qualified Data.Text.Lazy.IO as TL (appendFile, writeFile)
 
 import Download.Nix.All
 import Download.Nix.Common (DownloadAppConfig(..))
@@ -53,10 +55,11 @@ data NarsDownloadChoice = NarsDlNew | NarsDlMissingToo | NarsDlNone
 data InputScriptOrData = InputScript FilePath | InputData FilePath
   deriving (Eq, Show)
 
-type StoreRealiseChoice = Maybe (SignKey, RealiseLogFile)
+type StoreRealiseChoice = Maybe (SignKey, RealiseFixedOnly, RealiseLogFile)
 
 type SignKey = String
 type RealiseLogFile = String
+type RealiseFixedOnly = Bool
 
 data EitherSourcesInputs = EitherSourcesInputs
   { eitherInputChannel              :: Maybe FilePath
@@ -138,7 +141,6 @@ run opts = do
   putStrLn $ "---> have " ++ show (length narInfos) ++ " narinfo's\n"
 
   -- TODO calculate estimated total size of nars
-
   -- dumping store paths missing in remote binary cache
   sequenceA_ $ (<$> optPathsMissDump opts) $ \pathsMissDump -> do
     putStrLn $ "---> dumping store paths missing in " ++ optCacheBaseUrl opts
@@ -157,13 +159,30 @@ run opts = do
                <$> optNarDump opts
              )
 
-  -- realising missing store paths
-  sequenceA_ $ (<$> optRealiseChoice opts) $ \(signKey, realiseLogFp) -> do
-    putStrLn "---> realising store paths (that miss narinfo)"
-    realiseState <- runReaderT
-                    (realiseAndCopyPaths signKey missingPaths) dlAppConfig
-    TL.writeFile realiseLogFp $ pShowNoColor realiseState
-    putStrLn "---> finished store paths realisation"
+  let (missingFixedOutputPaths, missingOutputPaths) =
+        Map.partition (maybe False snd) $ Map.map fst missingPaths
+
+  -- realising fixed output missing store paths
+  sequenceA_
+    $ (<$> optRealiseChoice opts) $ \(signKey, fixedOnly, realiseLogFp) ->
+    do putStrLn "---> realising fixed output store paths (that miss narinfo)"
+       runReaderT
+         (realiseAndCopyPaths signKey missingFixedOutputPaths) dlAppConfig
+         >>= \realiseState ->
+               TL.writeFile realiseLogFp
+               $ pShowNoColor realiseState <> TL.pack "\n\n\n"
+       putStrLn "---> finished fixed output store paths realisation\n"
+
+       unless fixedOnly $ do
+         putStrLn
+           "---> realising output (non-fixed) store paths (that miss narinfo)"
+         runReaderT
+           (realiseAndCopyPaths signKey missingOutputPaths) dlAppConfig
+           >>= \realiseState ->
+                 TL.appendFile realiseLogFp
+                 $ pShowNoColor realiseState <> TL.pack "\n\n\n"
+         putStrLn
+           "---> finished output (non-fixed) store paths realisation\n"
 
   when doDlNars $ do
     putStrLn "---> getting nars (of every narinfo)"
@@ -267,11 +286,15 @@ narsDownloadChoiceParser =
 
 realiseChoiceParser :: Parser StoreRealiseChoice
 realiseChoiceParser = optional
-  $ curry id
+  $ (\a b c -> (a, b, c))
   <$> strOption
   (long "sign-key" <> metavar "SIGN_KEY"
    <> help "Path to the private signing key for `nix sign-paths -k` \
             \needed during `nix copy` of realised paths")
+  <*> switch
+  (long "realise-fixed-only" <> showDefault
+   <> help "Whether to realise (download) fixed outputs only \
+           \and not build anything else.")
   <*> strOption
   (long "realise-log" <> metavar "REALISE_LOG_FILE"
    <> help "Path to the realise log file.")

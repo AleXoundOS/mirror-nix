@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module Download.Nix.NarInfos
-  ( getNarInfos, GetNarInfosState(..)
+  ( getNarInfos, GetNarInfosState(..), NarInfoDlErr
   ) where
 
 import Control.Monad.Reader
@@ -10,15 +10,17 @@ import qualified Data.Map.Strict as Map
 
 import Download.Nix.BinaryCache
 import Download.Nix.Common
-import System.Nix.Derivation hiding (DerivationP(..))
 import System.Nix.NarInfo
 import System.Nix.StoreNames
+import System.Nix.StoreTuple
 import Utils
 
+newtype NarInfoDlErr = NarInfoDlErr String
+  deriving (Eq, Show)
 
 data GetNarInfosState = GetNarInfosState
   { stNarInfos  :: [NarInfo]
-  , stFailed    :: Map StoreName (Maybe DrvPath, String)
+  , stFailed    :: Map StoreName (Maybe StoreExtra, NarInfoDlErr)
   , stHashCache :: HashCache
   , stWantQty   :: Int
   , stCurQty    :: Int
@@ -28,16 +30,20 @@ data GetNarInfosState = GetNarInfosState
 -- | Recursively downloads and stores all `NarInfo`s comprising the given
 -- `StoreName`s. `StoreName`s failed to get immediate `NarInfo` are returned.
 getNarInfos :: (MonadReader DownloadAppConfig m, MonadIO m)
-  => Map StoreName (Maybe DrvPath) -> m GetNarInfosState
+  => Map StoreName (Maybe StoreExtra) -> m GetNarInfosState
 getNarInfos storeNamesMap = do
   putStrLnIO "GET [(narinfos) done/failed/want] store path"
   finalState <- foldM go initialState $ Map.toList storeNamesMap
   printLiveStats finalState >> putStrIO "\n"
-  return finalState
+  if length (stNarInfos finalState) == length (stHashCache finalState)
+    then return finalState
+    else error
+         "length (stNarInfos finalState) == length (stHashCache finalState)"
   where
     initialState = GetNarInfosState [] Map.empty mempty (length storeNamesMap) 0
     go :: (MonadReader DownloadAppConfig m, MonadIO m)
-       => GetNarInfosState -> (StoreName, Maybe DrvPath) -> m GetNarInfosState
+      => GetNarInfosState -> (StoreName, Maybe StoreExtra)
+      -> m GetNarInfosState
     go state item@(storeName, _) = do
       printLiveStats state >> putStrIO (showStoreNamePath storeName)
       (statusStr, state') <- processResult state item <$>
@@ -47,15 +53,14 @@ getNarInfos storeNamesMap = do
 
 processResult
   :: GetNarInfosState
-  -> (StoreName, Maybe DrvPath)
+  -> (StoreName, Maybe StoreExtra)
   -> Either String ([NarInfo], HashCache)
   -> (String, GetNarInfosState)
-processResult state (storeName, mDrvPath) result =
+processResult state (storeName, mExtra) result =
   case result of
     Left errStr ->
       ( " [FAIL]"
-      , state'{ stFailed =
-                  Map.insert storeName (mDrvPath, errStr) $ stFailed state }
+      , state'{ stFailed = mkStFailed errStr }
       )
     Right (ns, hs) ->
       ( " [DONE]"
@@ -65,6 +70,8 @@ processResult state (storeName, mDrvPath) result =
       )
   where
     state' = state{stCurQty = stCurQty state + 1}
+    mkStFailed errStr =
+      Map.insert storeName (mExtra, NarInfoDlErr errStr) $ stFailed state
 
 printLiveStats :: MonadIO m => GetNarInfosState -> m ()
 printLiveStats = putStrIO . showStats . getNums
