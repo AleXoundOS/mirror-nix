@@ -10,7 +10,7 @@ module Download.Nix.All
   , instantiateEnvDrvs
   ) where
 
-import Control.Monad (filterM, (<=<))
+import Control.Monad ((<=<))
 import Data.Either (lefts, rights)
 import Data.HashMap.Strict (HashMap)
 import Data.List (intercalate, partition)
@@ -82,20 +82,23 @@ getStorePathsSources (StorePathsSourcesInput
 instantiateEnvDrvs :: Bool -> Nixpkgs -> [String] -> [EnvDrvInfo]
                    -> IO ([EnvDrvInfo], [NixInstAttrErr], String)
 instantiateEnvDrvs force nixpkgs systemsList =
-  batchInstantiateInfos <=< filterEnvInfos force
+  batchInstantiateInfos <=< partitionEnvInfos force
   where
-    batchInstantiateInfos :: [EnvDrvInfo]
+    batchInstantiateInfos :: ([EnvDrvInfo], [EnvDrvInfo])
                           -> IO ([EnvDrvInfo], [NixInstAttrErr], String)
-    batchInstantiateInfos envDrvInfos = do
+    batchInstantiateInfos (envDrvInfosExist, envDrvInfosWant) = do
       instDrvResults <- batchListProg
-        printProgress 100 (nixInstEnvAttrs nixpkgs systemsList) envDrvInfos
-      let (good, bad) = check envDrvInfos instDrvResults
-      return (good, lefts instDrvResults, showCheck bad)
+        printProgress 100 (nixInstEnvAttrs nixpkgs systemsList) envDrvInfosWant
+      let (good, bad) = check envDrvInfosWant instDrvResults
+      return (envDrvInfosExist ++ good, lefts instDrvResults, showCheck bad)
+
     printProgress left want =
       putStrLn $ "[" ++ show (want - left) ++ "/" ++ show want ++ "]"
-    filterEnvInfos True = return
-    filterEnvInfos False =
-      filterM (fmap not . doesFileExist . T.unpack . _drvPath)
+
+    partitionEnvInfos :: Bool -> [EnvDrvInfo] -> IO ([EnvDrvInfo], [EnvDrvInfo])
+    partitionEnvInfos True = return . ([],)
+    partitionEnvInfos False = partitionM (doesFileExist . T.unpack . _drvPath)
+
     -- returns ((expected, got)) tuple
     check :: [EnvDrvInfo] -> [Either NixInstAttrErr DrvPath]
           -> ([EnvDrvInfo], [(EnvDrvInfo, DrvPath)])
@@ -105,12 +108,20 @@ instantiateEnvDrvs force nixpkgs systemsList =
             $ rights
             $ zipWith (\a b -> (a,) <$> b) envDrvInfos instDrvResults
       in (map fst good, bad)
+
     showCheck [] = ""
     showCheck unmatched = "instantiated derivations do not match expected\n"
       ++ intercalate ['\n'] (map showSingleUnmatched unmatched)
     showSingleUnmatched (envDrvInfoUnmatched, drvPathGot) =
       "expected: " ++ show envDrvInfoUnmatched ++ "\n"
       ++ "got: " ++ show drvPathGot ++ "\n"
+
+partitionM :: Monad f => (a -> f Bool) -> [a] -> f ([a], [a])
+partitionM _ [] = pure ([], [])
+partitionM f (x:xs) = do
+  res <- f x
+  (as, bs) <- partitionM f xs
+  pure ([x | res] ++ as, [x | not res] ++ bs)
 
 
 nixInstEnvAttrs :: Nixpkgs -> [String] -> [EnvDrvInfo]

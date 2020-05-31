@@ -118,8 +118,9 @@ run opts = do
     $ "---> instantiation failed attrs count: "
     ++ show (length instAttrsErrs)
   -- optionally dump fails to a file
-  sequenceA_ (flip TL.writeFile (pShowNoColor (instAttrsErrs, unmatched))
-              <$> optInstFailDump opts)
+  sequenceA_ $ (<$> optInstFailDump opts) $ flip TL.writeFile
+    (pShowNoColor instAttrsErrs <> TL.pack "\n" <> TL.pack unmatched)
+
   putStrLn
     $ "---> instantiation succeeded attrs count: "
     ++ show (length goodEnvDrvInfos)
