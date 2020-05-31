@@ -89,24 +89,25 @@ instantiateEnvDrvs force nixpkgs systemsList =
       batchListProg printProgress 100 (nixInstEnvAttrs nixpkgs systemsList)
     printProgress left want = putStrLn
       $ "[" ++ show (want - left) ++ "/" ++ show want ++ "]"
-    filterEnvInfos False = return
-    filterEnvInfos True = filterM (doesFileExist . T.unpack . _drvPath)
+    filterEnvInfos True = return
+    filterEnvInfos False = filterM (doesFileExist . T.unpack . _drvPath)
 
 nixInstEnvAttrs :: Nixpkgs -> [String] -> [EnvDrvInfo] -> IO [NixInstAttrErr]
 nixInstEnvAttrs nixpkgs systemsList envDrvInfos = do
   instDrvResults <- nixInstantiateAttrs
     nixpkgs args ["<nixpkgs/pkgs/top-level/release.nix>"] attrs
-  if check instDrvResults
-    then return $ lefts instDrvResults
-    else error
-         $ "instantiated derivations do not match expected\n"
-         ++ show envDrvInfos ++ "\n"
-         ++ show instDrvResults
+  case check instDrvResults of
+    [] -> return $ lefts instDrvResults
+    unmatched -> error
+      $ "instantiated derivations do not match expected\n"
+      ++ show envDrvInfos ++ "\n"
+      ++ show instDrvResults ++ "\n"
+      ++ show unmatched
   where
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
     attrs = map (T.unpack . _attrPath) envDrvInfos
     check instDrvResults =
-      all (uncurry (==))
+      filter (uncurry (/=))
       $ rights
       $ zipWith (\a b -> (, b) <$> a) instDrvResults (map _drvPath envDrvInfos)
 
