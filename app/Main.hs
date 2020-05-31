@@ -115,9 +115,14 @@ run opts = do
     instantiateEnvDrvs False (optNixpkgs opts) (optSystems opts)
                              (sourceNixpkgsRelease storePathsSources)
   putStrLn
-    $ "---> instantiation failed attrs count: " ++ show (length instAttrsErrs)
+    $ "---> instantiation failed attrs count: "
+    ++ show (length instAttrsErrs)
+  -- optionally dump fails to a file
   sequenceA_ (flip TL.writeFile (pShowNoColor (instAttrsErrs, unmatched))
               <$> optInstFailDump opts)
+  putStrLn
+    $ "---> instantiation succeeded attrs count: "
+    ++ show (length goodEnvDrvInfos)
   putStr "\n"
 
   putStrLn "---> combining data"
