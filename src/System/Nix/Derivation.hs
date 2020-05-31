@@ -4,7 +4,7 @@
 
 module System.Nix.Derivation
   ( DerivationP(..), DrvPath
-  , DrvIsFixed
+  , DrvIsFixed(..)
   , allDerivationPaths
   , parseJsonDerivations'
   , eitherDecodeStrict'
@@ -30,15 +30,17 @@ import Utils
 
 
 type DrvPath = Text
-type DrvIsFixed = Bool
+data DrvIsFixed = DrvIsFixed | DrvIsNotFixed | DrvFixedUnknown
+  deriving (Eq, Show)
 
 data DerivationP = DerivationP
   { drvOutputs   :: ![(StoreOut, DrvIsFixed)]
   , drvInputSrcs :: ![StorePath]
-  , drvInputDrvs ::  HashMap Text [DrvPath]
+  , drvInputDrvs :: ~(HashMap Text [DrvPath])
   , drvEnvPaths  :: ![StoreName]
   }
   deriving (Eq, Show)
+
 
 instance FromJSON DerivationP where
   parseJSON = withObject "DerivationP" $ \o -> do
@@ -52,9 +54,13 @@ parseOutputs :: Value -> Parser [(StoreOut, DrvIsFixed)]
 parseOutputs = withObject "drvOutputs" $ \o ->
   for (HM.toList o) $ \(outName, outAttrs) -> do
     (storePath, isFixed) <- (parseJSON outAttrs <&>) $ \hm ->
-      (hm HM.! T.pack "path", T.pack "hash" `HM.member` hm)
+      (hm HM.! T.pack "path", isFixedMap hm)
     storeName <- either fail pure $ stripParseStoreName storePath
     return ((outName, storeName), isFixed)
+  where
+    isFixedMap outputsMap
+      | T.pack "hash" `HM.member` outputsMap = DrvIsFixed
+      | otherwise = DrvIsNotFixed
 
 parseEnv :: Value -> Parser [StoreName]
 parseEnv = withObject "env" $ \o ->
@@ -66,7 +72,7 @@ parseEnv = withObject "env" $ \o ->
 allDerivationPaths :: DerivationP -> [(StoreName, DrvIsFixed)]
 allDerivationPaths drv =
   [(storeName, drvIsFixed) | ((_, storeName), drvIsFixed) <- drvOutputs drv]
-  ++ zip (inpSrcsPaths ++ inpDrvsPaths) (repeat False)
+  ++ zip (inpSrcsPaths ++ inpDrvsPaths) (repeat DrvFixedUnknown)
   where
     inpSrcsPaths = map (forceEitherStr . stripParseStoreName) (drvInputSrcs drv)
     inpDrvsPaths = drvEnvPaths drv

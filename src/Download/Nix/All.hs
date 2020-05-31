@@ -128,13 +128,15 @@ getAllPaths (StorePathsSources
 
       nixpkgsReleaseFixedPathsMap = Map.fromList
         [ ( forceEitherStr $ stripParseStoreName $ _path foInfo
-          , Just (_drv foInfo, True) )
+          , Just (_drv foInfo, DrvIsFixed) )
         | foInfo <- srcNixpkgsReleaseFixed
         ]
 
       drvPaths = nubOrd
         $ map E._drvPath srcNixpkgsRelease
-        ++ [drvPath | (_, Just (drvPath, _)) <- srcChannel]
+        -- in case we are given plain derivation paths as well
+        ++ [ drvPath
+           | (_, Just (drvPath, isFixed)) <- srcChannel, isFixed /= DrvIsFixed]
   in do
     -- discover more store paths recursively from derivation paths
     pathsDiscovered <- drvMapToStoreMap
@@ -165,7 +167,7 @@ drvMapToStoreMap =
 
 updateExtra :: Maybe StoreExtra -> Maybe StoreExtra -> Maybe StoreExtra
 updateExtra old@(Just _) new@(Just _) =
-  chooseOn ((== True) . snd) <$> old <*> new
+  chooseOn ((/= DrvFixedUnknown) . snd) <$> old <*> new
 updateExtra old@(Just _) Nothing = old
 updateExtra Nothing new@(Just _) = new
 updateExtra Nothing Nothing = Nothing

@@ -160,7 +160,8 @@ run opts = do
              )
 
   let (missingFixedOutputPaths, missingOutputPaths) =
-        Map.partition (maybe False snd) $ Map.map fst missingPaths
+        Map.partition (maybe False ((== DrvIsFixed) . snd))
+        $ Map.map fst missingPaths
 
   -- realising fixed output missing store paths
   sequenceA_
