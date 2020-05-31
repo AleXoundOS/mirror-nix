@@ -111,17 +111,18 @@ run opts = do
   printSourcesStats storePathsSources
 
   putStrLn "---> instantiating derivations missing in /nix/store"
-  instAttrsErrs <-
+  (goodEnvDrvInfos, instAttrsErrs, unmatched) <-
     instantiateEnvDrvs False (optNixpkgs opts) (optSystems opts)
                              (sourceNixpkgsRelease storePathsSources)
   putStrLn
     $ "---> instantiation failed attrs count: " ++ show (length instAttrsErrs)
-  sequenceA_ (flip TL.writeFile (pShowNoColor instAttrsErrs)
+  sequenceA_ (flip TL.writeFile (pShowNoColor (instAttrsErrs, unmatched))
               <$> optInstFailDump opts)
   putStr "\n"
 
   putStrLn "---> combining data"
-  allStoreNames <- getAllPaths storePathsSources
+  allStoreNames <-
+    getAllPaths storePathsSources{sourceNixpkgsRelease = goodEnvDrvInfos}
   putStrLn
     $ "---> number of discovered (locally) store paths to get: "
     ++ show (Map.size allStoreNames)

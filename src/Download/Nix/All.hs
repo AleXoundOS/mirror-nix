@@ -14,6 +14,7 @@ import Control.Monad (filterM, (<=<))
 import Data.Containers.ListUtils (nubOrd)
 import Data.Either (lefts, rights)
 import Data.HashMap.Strict (HashMap)
+import Data.List (intercalate, partition)
 import Data.Map.Strict (Map)
 import System.Directory (doesFileExist)
 import qualified Data.HashMap.Strict as HM
@@ -80,37 +81,46 @@ getStorePathsSources (StorePathsSourcesInput
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
 
 instantiateEnvDrvs :: Bool -> Nixpkgs -> [String] -> [EnvDrvInfo]
-                   -> IO [NixInstAttrErr]
+                   -> IO ([EnvDrvInfo], [NixInstAttrErr], String)
 instantiateEnvDrvs force nixpkgs systemsList =
   batchInstantiateInfos <=< filterEnvInfos force
   where
-    batchInstantiateInfos :: [EnvDrvInfo] -> IO [NixInstAttrErr]
-    batchInstantiateInfos =
-      batchListProg printProgress 100 (nixInstEnvAttrs nixpkgs systemsList)
-    printProgress left want = putStrLn
-      $ "[" ++ show (want - left) ++ "/" ++ show want ++ "]"
+    batchInstantiateInfos :: [EnvDrvInfo]
+                          -> IO ([EnvDrvInfo], [NixInstAttrErr], String)
+    batchInstantiateInfos envDrvInfos = do
+      instDrvResults <- batchListProg
+        printProgress 100 (nixInstEnvAttrs nixpkgs systemsList) envDrvInfos
+      let (good, bad) = check envDrvInfos instDrvResults
+      return (good, lefts instDrvResults, showCheck bad)
+    printProgress left want =
+      putStrLn $ "[" ++ show (want - left) ++ "/" ++ show want ++ "]"
     filterEnvInfos True = return
     filterEnvInfos False =
       filterM (fmap not . doesFileExist . T.unpack . _drvPath)
+    -- returns ((expected, got)) tuple
+    check :: [EnvDrvInfo] -> [Either NixInstAttrErr DrvPath]
+          -> ([EnvDrvInfo], [(EnvDrvInfo, DrvPath)])
+    check envDrvInfos instDrvResults =
+      let (good, bad) =
+            partition (uncurry ((==) . _drvPath))
+            $ rights
+            $ zipWith (\a b -> (a,) <$> b) envDrvInfos instDrvResults
+      in (map fst good, bad)
+    showCheck [] = ""
+    showCheck unmatched = "instantiated derivations do not match expected\n"
+      ++ intercalate ['\n'] (map showSingleUnmatched unmatched)
+    showSingleUnmatched (envDrvInfoUnmatched, drvPathGot) =
+      "expected: " ++ show envDrvInfoUnmatched ++ "\n"
+      ++ "got: " ++ show drvPathGot ++ "\n"
 
-nixInstEnvAttrs :: Nixpkgs -> [String] -> [EnvDrvInfo] -> IO [NixInstAttrErr]
-nixInstEnvAttrs nixpkgs systemsList envDrvInfos = do
-  instDrvResults <- nixInstantiateAttrs
-    nixpkgs args ["<nixpkgs/pkgs/top-level/release.nix>"] attrs
-  case check instDrvResults of
-    [] -> return $ lefts instDrvResults
-    unmatched -> error
-      $ "instantiated derivations do not match expected\n"
-      ++ show envDrvInfos ++ "\n"
-      ++ show instDrvResults ++ "\n"
-      ++ show unmatched
+
+nixInstEnvAttrs :: Nixpkgs -> [String] -> [EnvDrvInfo]
+                -> IO [Either NixInstAttrErr DrvPath]
+nixInstEnvAttrs nixpkgs systemsList envDrvInfos = nixInstantiateAttrs
+  nixpkgs args ["<nixpkgs/pkgs/top-level/release.nix>"] attrs
   where
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
     attrs = map (T.unpack . _attrPath) envDrvInfos
-    check instDrvResults =
-      filter (uncurry (/=))
-      $ rights
-      $ zipWith (\a b -> (a,) <$> b) (map _drvPath envDrvInfos) instDrvResults
 
 {- | Given 4 sources, get all \/nix\/store\/ paths with corresponding derivation
 paths (if possible) with the help of nix cli tools.
