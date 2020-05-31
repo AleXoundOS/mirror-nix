@@ -9,9 +9,12 @@ module Download.Nix.All
   , instantiateEnvDrvs
   ) where
 
+import Control.Monad (filterM, (<=<))
 import Data.Containers.ListUtils (nubOrd)
+import Data.Either (lefts)
 import Data.HashMap.Strict (HashMap)
 import Data.Map.Strict (Map)
+import System.Directory (doesFileExist)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
@@ -75,35 +78,32 @@ getStorePathsSources (StorePathsSourcesInput
     maybe' _ Nothing = return mempty
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
 
-instantiateEnvDrvs :: Nixpkgs -> [String] -> [EnvDrvInfo]
-                   -> IO [Either NixInstAttrErr EnvDrvInfo]
-instantiateEnvDrvs nixpkgs systemsList = batchInstantiateInfos
+instantiateEnvDrvs :: Bool -> Nixpkgs -> [String] -> [EnvDrvInfo]
+                   -> IO [NixInstAttrErr]
+instantiateEnvDrvs force nixpkgs systemsList =
+  batchInstantiateInfos <=< filterEnvInfos force
   where
-    batchInstantiateInfos
-      :: [EnvDrvInfo] -> IO [Either NixInstAttrErr EnvDrvInfo]
+    batchInstantiateInfos :: [EnvDrvInfo] -> IO [NixInstAttrErr]
     batchInstantiateInfos =
-      batchListProg printProgress 100 (nixInstUpdEnvAttrs nixpkgs systemsList)
+      batchListProg printProgress 100 (nixInstEnvAttrs nixpkgs systemsList)
     printProgress left want = putStrLn
       $ "[" ++ show (want - left) ++ "/" ++ show want ++ "]"
+    filterEnvInfos False = return
+    filterEnvInfos True = filterM (doesFileExist . T.unpack . _drvPath)
 
-nixInstUpdEnvAttrs :: Nixpkgs -> [String] -> [EnvDrvInfo]
-                   -> IO [Either NixInstAttrErr EnvDrvInfo]
-nixInstUpdEnvAttrs nixpkgs systemsList envDrvInfos = do
-  instDrvPaths <- nixInstantiateAttrs
+nixInstEnvAttrs :: Nixpkgs -> [String] -> [EnvDrvInfo] -> IO [NixInstAttrErr]
+nixInstEnvAttrs nixpkgs systemsList envDrvInfos = do
+  instDrvResults <- nixInstantiateAttrs
     nixpkgs args ["<nixpkgs/pkgs/top-level/release.nix>"] attrs
-  if length instDrvPaths == length envDrvInfos
-    then return
-         [ updateEnvInfo envInfo <$> eDrvPath
-         | (envInfo, eDrvPath) <- zip envDrvInfos instDrvPaths
-         ]
+  if length instDrvResults == length envDrvInfos
+    then return $ lefts instDrvResults
     else error
          $ "instantiated derivations count /= attrs count\n"
          ++ show envDrvInfos ++ "\n"
-         ++ show instDrvPaths
+         ++ show instDrvResults
   where
     args = [("supportedSystems", unNixList $ mkNixStrList systemsList)]
     attrs = map (T.unpack . _attrPath) envDrvInfos
-    updateEnvInfo envInfo drvPath = envInfo{_drvPath = drvPath}
 
 {- | Given 4 sources, get all \/nix\/store\/ paths with corresponding derivation
 paths (if possible) with the help of nix cli tools.

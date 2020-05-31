@@ -3,7 +3,6 @@
 module Main (main) where
 
 import Control.Monad.Reader
-import Data.Either (partitionEithers)
 import Data.Foldable (sequenceA_)
 import Data.Maybe (maybe)
 import Data.Semigroup ((<>))
@@ -112,9 +111,9 @@ run opts = do
   printSourcesStats storePathsSources
 
   putStrLn "---> instantiating derivations missing in /nix/store"
-  (instAttrsErrs, updatedEnvInfos) <- partitionEithers <$>
-    instantiateEnvDrvs (optNixpkgs opts) (optSystems opts)
-                       (sourceNixpkgsRelease storePathsSources)
+  instAttrsErrs <-
+    instantiateEnvDrvs False (optNixpkgs opts) (optSystems opts)
+                             (sourceNixpkgsRelease storePathsSources)
   putStrLn
     $ "---> instantiation failed attrs count: " ++ show (length instAttrsErrs)
   sequenceA_ (flip TL.writeFile (pShowNoColor instAttrsErrs)
@@ -122,8 +121,7 @@ run opts = do
   putStr "\n"
 
   putStrLn "---> combining data"
-  allStoreNames <-
-    getAllPaths storePathsSources{sourceNixpkgsRelease = updatedEnvInfos}
+  allStoreNames <- getAllPaths storePathsSources
   putStrLn
     $ "---> number of discovered (locally) store paths to get: "
     ++ show (Map.size allStoreNames)
