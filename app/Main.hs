@@ -112,8 +112,8 @@ run opts = do
 
   putStrLn "---> instantiating derivations missing in /nix/store"
   instAttrsErrs <-
-    instantiateEnvDrvs True (optNixpkgs opts) (optSystems opts)
-                            (sourceNixpkgsRelease storePathsSources)
+    instantiateEnvDrvs False (optNixpkgs opts) (optSystems opts)
+                             (sourceNixpkgsRelease storePathsSources)
   putStrLn
     $ "---> instantiation failed attrs count: " ++ show (length instAttrsErrs)
   sequenceA_ (flip TL.writeFile (pShowNoColor instAttrsErrs)
