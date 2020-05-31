@@ -34,7 +34,7 @@ data RealiseError = RealiseErrorExitFailure (ExitCode, ByteString)
 realiseAndCopyPaths :: (MonadReader DownloadAppConfig m, MonadIO m)
   => String -> Map StoreName (Maybe StoreExtra) -> m RealiseCopyPathsState
 realiseAndCopyPaths signKey targetStoreMap = do
-  putStrLnIO "GET [done/failed/want] store path"
+  putStrLnIO "REALISE [done/failed/want] store path"
   finalState <- foldM go initialState $ Map.toList targetStoreMap
   printLiveStats finalState >> putStrIO "\n"
   return finalState
