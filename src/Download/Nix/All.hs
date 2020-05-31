@@ -109,7 +109,7 @@ nixInstEnvAttrs nixpkgs systemsList envDrvInfos = do
     check instDrvResults =
       filter (uncurry (/=))
       $ rights
-      $ zipWith (\a b -> (, b) <$> a) instDrvResults (map _drvPath envDrvInfos)
+      $ zipWith (\a b -> (a,) <$> b) (map _drvPath envDrvInfos) instDrvResults
 
 {- | Given 4 sources, get all \/nix\/store\/ paths with corresponding derivation
 paths (if possible) with the help of nix cli tools.
