@@ -20,7 +20,7 @@ import Data.Text.Encoding (decodeUtf8)
 import System.Exit (ExitCode(..))
 import System.Process.Typed
 import qualified Data.ByteString.Char8 as B (lines)
-import qualified Data.Text as T (unpack)
+import qualified Data.Text as T (takeWhile, unpack)
 
 import System.Nix.Derivation
 import System.Nix.StoreNames
@@ -75,7 +75,8 @@ nixInstantiateAttrs nixpkgs nixArgsTup files attrs = do
   case (exitCode, attrs) of
     -- all given [Attr] instantiated successfully
     (ExitSuccess, _) ->
-      return $ map (Right . decodeUtf8) $ B.lines $ toStrict out
+      return
+      $ map (Right . T.takeWhile (/= '!') . decodeUtf8) $ B.lines $ toStrict out
     -- one Attr instantiation failed and it's the only Attr remaining
     (ExitFailure _, [attr]) ->
       return [Left (attr, exitCode, toStrict err)]
