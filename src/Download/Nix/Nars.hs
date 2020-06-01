@@ -28,7 +28,7 @@ data DownloadNarsState = DownloadNarsState
 dlNars :: (MonadReader DownloadAppConfig m, MonadIO m)
   => [NarInfo] -> m DownloadNarsState
 dlNars ns = do
-  putStrLnIO "NAR GET [done/failed/want] store path"
+  putStrLnIO "GET NAR [done/failed/want] store path"
   finalState <- foldM go initialState ns
   printLiveStats finalState >> putStrIO "\n"
   return finalState
@@ -83,4 +83,4 @@ printLiveStats = putStrIO . showStats . getNums
   where
     getNums state = (stCurQty state, length $ stFailed state, stWantQty state)
     showStats (cur, failed, want) =
-      "NAR GET [" ++ show cur ++ "/" ++ show failed ++ "/" ++ show want ++ "] "
+      "GET NAR [" ++ show cur ++ "/" ++ show failed ++ "/" ++ show want ++ "] "
