@@ -101,14 +101,17 @@ jsonDerivation1 = Just $ fromList
       , DerivationP
           { drvOutputs =
               [
+                (
                   ( "out"
                   , StoreName
-                      { unStoreName =
-                          ( "nf85iwaj7m1y69ci2niszg05pqp91wgp"
-                          , "base64_js___base64_js_1.2.3.tgz"
-                          )
-                      }
+                    { unStoreName =
+                        ( "nf85iwaj7m1y69ci2niszg05pqp91wgp"
+                        , "base64_js___base64_js_1.2.3.tgz"
+                        )
+                    }
                   )
+                , DrvIsFixed
+                )
               ]
           , drvInputSrcs = [ "/nix/store/4snpxiw4s2f0nqn6vl9d7p1jqbiar6iy-builder.sh" ]
           , drvInputDrvs = fromList
