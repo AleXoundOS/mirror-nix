@@ -9,5 +9,9 @@ stack exec -- nix-mirror-cache `
 `--ofborg-outpaths-out="nix-env-ofborg-outpaths.txt" `
 `--find-fixed-outputs-json="find-fixed-outputs-pp.json" `
 `--realise-log="realise.log" `
+`--nars-dl-none `
+`--cache-base-url="localhost" `
+`--inst-fail-dump="inst-fail.dump" `
+`--realise-fixed-only `
 ` $@ |& tee log.txt
 
