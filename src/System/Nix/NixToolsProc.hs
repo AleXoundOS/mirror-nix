@@ -178,7 +178,7 @@ nixCopyPaths :: [FilePath] -> FilePath -> IO ()
 nixCopyPaths storePaths destFp = runProcess_ process
   where
     process = proc "nix"
-      $ ["copy", "--to", "file://" ++ destFp] ++ storePaths
+      $ ["copy", "--quiet", "--to", "file://" ++ destFp] ++ storePaths
 
 -- | @nix sign-paths -r@ store paths to file:// store-uri.
 nixSignPaths :: [FilePath] -> FilePath -> IO ()
