@@ -57,10 +57,6 @@ downloadNar ni = do
     endp = _url ni
     hash = NixBase32.decode $ _fileHash ni
 
-mapBoth :: (a -> c) -> (b -> d) -> Either a b -> Either c d
-mapBoth f _ (Left x)  = Left (f x)
-mapBoth _ f (Right x) = Right (f x)
-
 processResult :: DownloadNarsState -> NarInfo -> Either DownloadError FilePath
               -> (String, DownloadNarsState)
 processResult state narinfo result =

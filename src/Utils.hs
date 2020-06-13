@@ -14,3 +14,7 @@ putStrIO = liftIO . (\s -> putStr s >> hFlush stdout)
 
 putStrLnIO :: MonadIO m => String -> m ()
 putStrLnIO = liftIO . putStrLn
+
+mapBoth :: (a -> c) -> (b -> d) -> Either a b -> Either c d
+mapBoth f _ (Left x)  = Left (f x)
+mapBoth _ f (Right x) = Right (f x)

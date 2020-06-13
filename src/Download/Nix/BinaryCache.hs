@@ -38,8 +38,10 @@ type HashCache = Set.Set ShortByteString
 downloadNoCheckE :: (MonadReader DownloadAppConfig m, MonadIO m)
                  => UrlEndpoint -> m (Either HttpException ByteString)
 downloadNoCheckE endp = do
-  bcHost <- https <$> asks appBcBaseUrl
-  downloadAndSave (Right (bcHost /: endp, mempty)) (T.unpack endp)
+  bcBaseUrl <- mkRequest <$> asks appBcBaseUrl
+  downloadAndSave (mapBoth mkUrl mkUrl bcBaseUrl) (T.unpack endp)
+  where
+    mkUrl (base, opt) = (base /: endp, opt)
 
 -- | Download a file in a streaming manner, validating its checksum before
 -- renaming from temporary.

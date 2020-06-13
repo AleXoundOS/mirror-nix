@@ -247,7 +247,7 @@ optsParser = Opts
            \binary cache `NarInfo` recursion (unknown which is best)")
   <*> strOption
    (long "cache-base-url" <> metavar "CACHE_BASE_URL"
-    <> value "cache.nixos.org" <> showDefault
+    <> value "https://cache.nixos.org" <> showDefault
     <> help "Binary cache base url (without http://")
   <*> strOption
    (long "nixpkgs" <> metavar "NIXPKGS" <> value "<nixpkgs>" <> showDefault
