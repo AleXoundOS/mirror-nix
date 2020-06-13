@@ -226,19 +226,19 @@ optsParser = Opts
   (strOption
     (long "dump-paths-miss" <> metavar "DUMP_PATHS_MISS"
      <> help "Path to a file narinfo missing paths get written to. \
-             \Useful to pass this file as store-paths input for realization.")
+             \Useful to pass this file as store-paths input for realization")
   )
   <*> optional
   (strOption
     (long "dump-narinfo-urls" <> metavar "NARINFO_URLS_FILE"
       <> help "Path to a file for storing all narinfos urls \
-              \the program has downloaded.")
+              \the program has downloaded")
   )
   <*> optional
   (strOption
     (long "dump-nar-urls" <> metavar "NAR_URLS_FILE"
       <> help "Path to a file for storing all nar urls \
-              \ the program has found before download.")
+              \ the program has found before download")
   )
   <*> switch
   (long "use-streaming"
@@ -247,7 +247,7 @@ optsParser = Opts
   <*> strOption
    (long "cache-base-url" <> metavar "CACHE_BASE_URL"
     <> value "https://cache.nixos.org" <> showDefault
-    <> help "Binary cache base url.")
+    <> help "Binary cache base url")
   <*> strOption
    (long "nixpkgs" <> metavar "NIXPKGS" <> value "<nixpkgs>" <> showDefault
     <> help
@@ -266,12 +266,12 @@ optsParser = Opts
   <*> optional
   (strOption
     (long "inst-fail-dump" <> metavar "INST_FAIL_DUMP"
-      <> help "Path to a dump of instantiation failed attrs."))
+      <> help "Path to a dump of instantiation failed attrs"))
   <*> optional
   (strOption
     (long "log-file" <> metavar "LOG_FILE"
       <> help "Path to a log output file of this program. \
-              \Currently disables stdout printing."))
+              \Currently disables stdout printing"))
 
 narsDownloadChoiceParser :: Parser NarsDownloadChoice
 narsDownloadChoiceParser =
@@ -300,10 +300,10 @@ realiseChoiceParser = optional
   <*> switch
   (long "realise-fixed-only" <> showDefault
    <> help "Whether to realise (download) fixed outputs only \
-           \and not build anything else.")
+           \and not build anything else")
   <*> strOption
   (long "realise-log" <> metavar "REALISE_LOG_FILE"
-   <> help "Path to the realise log file.")
+   <> help "Path to the realise log file")
 
 eitherSourcesInputsParser :: Parser EitherSourcesInputs
 eitherSourcesInputsParser = EitherSourcesInputs
