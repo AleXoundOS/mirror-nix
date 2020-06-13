@@ -164,11 +164,20 @@ run opts = do
                <$> optNarDump opts
              )
 
+  -- downloading nars
+  when doDlNars $ do
+    putStrLn "---> getting nars (of every narinfo)"
+    dlNarsState <-
+      runReaderT (dlNars narInfos) dlAppConfig
+    putStrLn "---> finished nars retrieval"
+    putStrLn $ "---> got " ++ show (length $ stStored dlNarsState) ++ " nars"
+    putStrLn $ "---> failed: " ++ show (Download.Nix.Nars.stFailed dlNarsState)
+
+  -- realising fixed output missing store paths
   let (missingFixedOutputPaths, missingOutputPaths) =
         Map.partition (maybe False ((== DrvIsFixed) . snd))
         $ Map.map fst missingPaths
 
-  -- realising fixed output missing store paths
   sequenceA_
     $ (<$> optRealiseChoice opts) $ \(signKey, fixedOnly, realiseLogFp) ->
     do putStrLn "---> realising fixed output store paths (that miss narinfo)"
@@ -189,14 +198,6 @@ run opts = do
                  $ pShowNoColor realiseState <> TL.pack "\n\n\n"
          putStrLn
            "---> finished output (non-fixed) store paths realisation\n"
-
-  when doDlNars $ do
-    putStrLn "---> getting nars (of every narinfo)"
-    dlNarsState <-
-      runReaderT (dlNars narInfos) dlAppConfig
-    putStrLn "---> finished nars retrieval"
-    putStrLn $ "---> got " ++ show (length $ stStored dlNarsState) ++ " nars"
-    putStrLn $ "---> failed: " ++ show (Download.Nix.Nars.stFailed dlNarsState)
 
   putStrLn "---> finished binary cache download!"
 
