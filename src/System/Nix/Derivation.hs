@@ -36,7 +36,7 @@ data DrvIsFixed = DrvIsFixed | DrvIsNotFixed | DrvFixedUnknown
 data DerivationP = DerivationP
   { drvOutputs   :: ![(StoreOut, DrvIsFixed)]
   , drvInputSrcs :: ![StorePath]
-  , drvInputDrvs :: ~(HashMap Text [DrvPath])
+  -- , drvInputDrvs :: ~(HashMap Text [DrvPath])
   , drvEnvPaths  :: ![StoreName]
   }
   deriving (Eq, Show)
@@ -46,7 +46,7 @@ instance FromJSON DerivationP where
   parseJSON = withObject "DerivationP" $ \o -> do
     drvOutputs   <- o .: "outputs" >>= parseOutputs
     drvInputSrcs <- o .: "inputSrcs"
-    drvInputDrvs <- o .: "inputDrvs"
+    -- drvInputDrvs <- o .: "inputDrvs"
     drvEnvPaths  <- o .: "env" >>= parseEnv
     return DerivationP{..}
 
@@ -72,10 +72,10 @@ parseEnv = withObject "env" $ \o ->
 allDerivationPaths :: DerivationP -> [(StoreName, DrvIsFixed)]
 allDerivationPaths drv =
   [(storeName, drvIsFixed) | ((_, storeName), drvIsFixed) <- drvOutputs drv]
-  ++ zip (inpSrcsPaths ++ inpDrvsPaths) (repeat DrvFixedUnknown)
+  ++ zip (inpSrcsPaths ++ envDrvsPaths) (repeat DrvFixedUnknown)
   where
     inpSrcsPaths = map (forceEitherStr . stripParseStoreName) (drvInputSrcs drv)
-    inpDrvsPaths = drvEnvPaths drv
+    envDrvsPaths = drvEnvPaths drv
 
 parseJsonDerivations' :: ByteString -> HashMap DrvPath DerivationP
 parseJsonDerivations' = either error id . eitherDecodeStrict'
