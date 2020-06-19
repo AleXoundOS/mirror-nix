@@ -126,7 +126,7 @@ run opts = do
     ++ show (length goodEnvDrvInfos)
   putStr "\n"
 
-  putStrLn "---> combining data"
+  putStrLn "---> processing and combining data"
   allStoreNames <-
     getAllPaths storePathsSources{sourceNixpkgsRelease = goodEnvDrvInfos}
   putStrLn
