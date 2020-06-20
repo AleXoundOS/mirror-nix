@@ -1,5 +1,5 @@
 NIXPKGS="https://github.com/NixOS/nixpkgs/archive/f45ccd9d20b4e90e43c4562b9941ea1dbd8f07a4.tar.gz"
-stack exec -- nix-mirror-cache `
+stack exec -- mirror-nix-cache `
 `--nixpkgs="$NIXPKGS" `
 `--dump-paths="paths.dump" `
 `--dump-paths-miss="paths-miss.dump" `

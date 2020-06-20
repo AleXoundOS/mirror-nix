@@ -9,7 +9,6 @@ import Data.Semigroup ((<>))
 import Options.Applicative as OA
 import System.Directory (createDirectoryIfMissing)
 import System.Exit
-import System.IO
 import Text.Pretty.Simple (pShowNoColor)
 import qualified Data.ByteString.Char8 as B (readFile)
 import qualified Data.Map as Map
@@ -45,7 +44,6 @@ data Opts = Opts
   , optSystems       :: [String]
   , optESrcInps      :: EitherSourcesInputs
   , optInstFailDump  :: Maybe FilePath
-  , optLogFile       :: Maybe FilePath
   } deriving (Show)
 
 data NarsDownloadChoice = NarsDlNew | NarsDlMissingToo | NarsDlNone
@@ -73,14 +71,13 @@ main = run =<< customExecParser p opts
   where
     opts = info (helper <*> optsParser)
       ( fullDesc
-        <> header "nix-mirror-cache - \
-                  \download specified piece of nix binary cache for http serve"
+        <> header "mirror-nix-cache - \
+                  \download specified piece of nix binary cache"
       )
     p = defaultPrefs {prefShowHelpOnError = True}
 
 run :: Opts -> IO ()
 run opts = do
-  hSetBuffering stdout LineBuffering
   putStrLn "nix-mirror-cache start"
   when (all ((== Nothing) . ($ optESrcInps opts))
          [ fmap InputData . eitherInputChannel
@@ -268,11 +265,6 @@ optsParser = Opts
   (strOption
     (long "inst-fail-dump" <> metavar "INST_FAIL_DUMP"
       <> help "Path to a dump of instantiation failed attrs"))
-  <*> optional
-  (strOption
-    (long "log-file" <> metavar "LOG_FILE"
-      <> help "Path to a log output file of this program. \
-              \Currently disables stdout printing"))
 
 narsDownloadChoiceParser :: Parser NarsDownloadChoice
 narsDownloadChoiceParser =

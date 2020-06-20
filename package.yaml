@@ -1,6 +1,6 @@
-name:                nix-mirror
+name:                mirror-nix-cache
 version:             0.1.1.2
-github:              "alexoundos/nix-mirror"
+github:              "alexoundos/mirror-nix-cache"
 license:             GPL-3
 author:              "Alexander Tomokhov"
 maintainer:          "Alexander Tomokhov"
@@ -16,7 +16,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/alexoundos/nix-mirror#readme>
+description:         Please see the README on GitHub at <https://github.com/alexoundos/mirror-nix-cache#readme>
 
 dependencies:
 - base >= 4.7 && < 5
@@ -58,7 +58,7 @@ library:
   - yaml
 
 executables:
-  nix-mirror-cache:
+  mirror-nix-cache:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -66,7 +66,7 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - nix-mirror
+    - mirror-nix-cache
     - bytestring
     - containers
     - directory
@@ -76,7 +76,7 @@ executables:
     - text
 
 tests:
-  nix-mirror-test:
+  mirror-nix-cache-test:
     main:                Test.hs
     source-dirs:         test
     ghc-options:
@@ -86,7 +86,7 @@ tests:
     dependencies:
     - base
     - bytestring
-    - nix-mirror
+    - mirror-nix-cache
     - req
     - tasty
     - tasty-hunit
