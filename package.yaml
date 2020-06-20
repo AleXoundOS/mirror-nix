@@ -1,5 +1,5 @@
 name:                nix-mirror
-version:             0.1.1.1
+version:             0.1.1.2
 github:              "alexoundos/nix-mirror"
 license:             GPL-3
 author:              "Alexander Tomokhov"
@@ -33,30 +33,29 @@ library:
   source-dirs: src
   exposed: false
   dependencies:
-    - aeson
-    - base16-bytestring
-    - base64-bytestring
-    - bytestring
-    - conduit
-    - containers
-    - cryptohash-sha1
-    - cryptohash-sha256
-    - cryptohash-sha512
-    - directory
-    - filepath
-    - http-client
-    - http-types
-    - mtl
-    - req
-    - req-conduit
-    - safe-exceptions
-    - temporary
-    - text
-    - transformers
-    - typed-process
-    - unordered-containers
-    - vector
-    - yaml
+  - aeson
+  - base16-bytestring
+  - base64-bytestring
+  - bytestring
+  - conduit
+  - containers
+  - cryptohash-sha1
+  - cryptohash-sha256
+  - cryptohash-sha512
+  - directory
+  - filepath
+  - http-client
+  - http-types
+  - mtl
+  - req
+  - req-conduit
+  - safe-exceptions
+  - temporary
+  - text
+  - typed-process
+  - unordered-containers
+  - vector
+  - yaml
 
 executables:
   nix-mirror-cache:
@@ -66,36 +65,31 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -Wall -Wcompat
-    - -Wpartial-fields -Wincomplete-record-updates
-    - -Widentities -Wincomplete-uni-patterns -Wredundant-constraints
     dependencies:
-      - nix-mirror
-      - bytestring
-      - containers
-      - directory
-      - mtl
-      - optparse-applicative
-      - pretty-simple
-      - safe-exceptions
-      - text
-      - transformers
+    - nix-mirror
+    - bytestring
+    - containers
+    - directory
+    - mtl
+    - optparse-applicative
+    - pretty-simple
+    - text
 
 tests:
   nix-mirror-test:
     main:                Test.hs
     source-dirs:         test
     ghc-options:
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
-      - base
-      - bytestring
-      - nix-mirror
-      - req
-      - tasty
-      - tasty-hunit
-      - text
-      - unordered-containers
-      - yaml
+    - base
+    - bytestring
+    - nix-mirror
+    - req
+    - tasty
+    - tasty-hunit
+    - text
+    - unordered-containers
+    - yaml
