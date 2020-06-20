@@ -12,6 +12,7 @@ module System.Nix.NixToolsProc
   , batchList, batchListProg
   ) where
 
+import Control.Monad (unless)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict)
 import Data.HashMap.Strict (HashMap)
@@ -177,8 +178,10 @@ nixStoreRealiseDrv drvPath = do
 -- | @nix copy@ store paths to file:// store-uri.
 nixCopyPaths :: [FilePath] -> FilePath -> IO ()
 nixCopyPaths storePaths destFp = do
-  runProcess_ $ process destPlain storePathsPlain
-  runProcess_ $ process destComp  storePathsComp
+  unless (null storePathsPlain)
+    (runProcess_ $ process destPlain storePathsPlain)
+  unless (null storePathsComp)
+    (runProcess_ $ process destComp storePathsComp)
   where
     process dest fps = proc "nix"
       $ ["copy", "--quiet", "--to", "file://" ++ dest] ++ fps
