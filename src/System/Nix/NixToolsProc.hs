@@ -15,9 +15,10 @@ module System.Nix.NixToolsProc
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict)
 import Data.HashMap.Strict (HashMap)
-import Data.List (splitAt)
+import Data.List (partition, splitAt)
 import Data.Text.Encoding (decodeUtf8)
 import System.Exit (ExitCode(..))
+import System.FilePath.Posix (takeExtension)
 import System.Process.Typed
 import qualified Data.ByteString.Char8 as B (lines)
 import qualified Data.Text as T (takeWhile, unpack)
@@ -175,10 +176,19 @@ nixStoreRealiseDrv drvPath = do
 
 -- | @nix copy@ store paths to file:// store-uri.
 nixCopyPaths :: [FilePath] -> FilePath -> IO ()
-nixCopyPaths storePaths destFp = runProcess_ process
+nixCopyPaths storePaths destFp = do
+  runProcess_ $ process destPlain storePathsPlain
+  runProcess_ $ process destComp  storePathsComp
   where
-    process = proc "nix"
-      $ ["copy", "--quiet", "--to", "file://" ++ destFp] ++ storePaths
+    process dest fps = proc "nix"
+      $ ["copy", "--quiet", "--to", "file://" ++ dest] ++ fps
+    destPlain = destFp
+    destComp  = destFp ++ "?compression=none"
+    (storePathsComp, storePathsPlain) = partition isCompressedPath storePaths
+    isCompressedPath fp = drop 1 (takeExtension fp) `elem` compExts
+    compExts =
+      [ "AppImage", "bz", "cab", "deb", "dmg", "gz", "lz", "msi", "rar", "rpm"
+      , "tgz", "xz", "zip"]
 
 -- | @nix sign-paths -r@ store paths to file:// store-uri.
 nixSignPaths :: [FilePath] -> FilePath -> IO ()
