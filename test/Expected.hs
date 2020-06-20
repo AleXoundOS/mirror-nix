@@ -114,24 +114,24 @@ jsonDerivation1 = Just $ fromList
                 )
               ]
           , drvInputSrcs = [ "/nix/store/4snpxiw4s2f0nqn6vl9d7p1jqbiar6iy-builder.sh" ]
-          , drvInputDrvs = fromList
-              [
-                  ( "/nix/store/hlaih3x0mabh6n1cgcw2ka4m1mm7yp2c-bash-4.4-p23.drv"
-                  , [ "out" ]
-                  )
-              ,
-                  ( "/nix/store/vxlyv4yf8b08ddricyv9678dn8p5bbgz-curl-7.65.3.drv"
-                  , [ "dev" ]
-                  )
-              ,
-                  ( "/nix/store/73ijll441w7rrv50jks04v53dm3p2zfq-mirrors-list.drv"
-                  , [ "out" ]
-                  )
-              ,
-                  ( "/nix/store/jxgsszzgd68cy259bpdqlzr0nw6h15nf-stdenv-linux.drv"
-                  , [ "out" ]
-                  )
-              ]
+          -- , drvInputDrvs = fromList
+          --     [
+          --         ( "/nix/store/hlaih3x0mabh6n1cgcw2ka4m1mm7yp2c-bash-4.4-p23.drv"
+          --         , [ "out" ]
+          --         )
+          --     ,
+          --         ( "/nix/store/vxlyv4yf8b08ddricyv9678dn8p5bbgz-curl-7.65.3.drv"
+          --         , [ "dev" ]
+          --         )
+          --     ,
+          --         ( "/nix/store/73ijll441w7rrv50jks04v53dm3p2zfq-mirrors-list.drv"
+          --         , [ "out" ]
+          --         )
+          --     ,
+          --         ( "/nix/store/jxgsszzgd68cy259bpdqlzr0nw6h15nf-stdenv-linux.drv"
+          --         , [ "out" ]
+          --         )
+          --     ]
           , drvEnvPaths =
               [ StoreName
                   { unStoreName =
