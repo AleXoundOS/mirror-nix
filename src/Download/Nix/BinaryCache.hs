@@ -175,27 +175,6 @@ downloadBinCacheForStoreNamesC hs storeNames =
     log' storeName = liftIO
       $ putStrLn $ "taking target store path: " ++ showStoreNamePath storeName
 
--- | Download Nix binary cache for the given target `StorePath`s list and all
--- its recursive references (dependencies), selecting `NarInfo` recursion
--- implementation based on `MonadReader DownloadAppConfig`.
--- downloadBinCacheForStoreNames :: (MonadReader DownloadAppConfig m, MonadIO m)
---                               => HashCache -> [StoreName] -> m HashCache
--- downloadBinCacheForStoreNames hs storeNames =
---   asks appUseConduit >>= \useConduit -> bcDlFunc useConduit hs storeNames
---  where
---    bcDlFunc :: (MonadReader DownloadAppConfig m, MonadIO m)
---             => Bool -> (HashCache -> [StoreName] -> m HashCache)
---    bcDlFunc True  = downloadBinCacheForStoreNamesC
---    bcDlFunc False = downloadBinCacheForStoreNames'
-
--- downloadCacheForStoreName :: (MonadReader DownloadAppConfig m, MonadIO m)
---                           => HashCache -> StoreName -> m (Maybe HashCache)
--- downloadCacheForStoreName hs storeName =
---   asks appUseConduit >>= \useConduit -> bcDlFunc useConduit hs storeName
---  where
---    bcDlFunc True  = downloadCacheForStoreNameC
---    bcDlFunc False = downloadCacheForStoreName'
-
 downloadCacheForStoreName' :: (MonadReader DownloadAppConfig m, MonadIO m)
                            => HashCache -> StoreName -> m (Maybe HashCache)
 downloadCacheForStoreName' hs storeName = do
