@@ -21,22 +21,22 @@ import qualified System.Nix.Base32 as NixBase32 (encode)
 
 data FixedOutputInfo = FixedOutputInfo
   { _drv  :: !Text
-  , _hash :: Text
-  , _mode :: Maybe DrvMode
-  , _name :: Text
+  , _hash :: ~Text
+  , _mode :: ~(Maybe DrvMode)
+  , _name :: ~Text
   , _path :: !Text
-  , _type :: HashType
+  , _type :: ~HashType
   , _urls :: [Text]
   }
   deriving (Eq, Show)
 
 data FixedOutputInfo' = FixedOutputInfo'
   { _drv'  :: !Text
-  , _hash' :: Text
-  , _mode' :: Maybe DrvMode
-  , _name' :: Text
+  , _hash' :: ~Text
+  , _mode' :: ~(Maybe DrvMode)
+  , _name' :: ~Text
   , _path' :: !Text
-  , _type' :: HashType'
+  , _type' :: ~HashType'
   , _urls' :: [Text]
   }
   deriving (Show)
