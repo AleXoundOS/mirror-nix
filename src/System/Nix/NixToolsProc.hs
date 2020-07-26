@@ -106,12 +106,19 @@ nixInstantiateAttrsB n printProgress nixpkgs nixArgsTup files =
 -- | @nix-instantiate@ the given nix scripts with strict evaluation and JSON
 -- output.
 nixInstantiateStrictBs :: Nixpkgs -> [NixArg] -> [FilePath] -> IO ByteString
-nixInstantiateStrictBs nixpkgs nixArgsTup files = toStrict
-  <$> (print process >> readProcessStdout_ (setEnvVars process))
+nixInstantiateStrictBs nixpkgs nixArgsTup files = do
+  putStrLn "! NOT EVALUATING UNFREE DERIVATIONS DUE TO \
+           \\"error: attribute 'bin' missing at, ...nvidia-x11/settings.nix\" !"
+  toStrict <$> (print process >> readProcessStdout_ (setEnv env process))
   where
     process = proc "nix-instantiate"
       $ ["--quiet", "--quiet", "--eval", "--strict", "--json"]
       ++ mkNixPath nixpkgs ++ mkNixArgs nixArgsTup ++ files
+    env =
+      [ ("GC_INITIAL_HEAP_SIZE",             gcInitialHeapSize)
+      , ("NIXPKGS_ALLOW_INSECURE",           "1")
+      , ("NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM", "1") -- TODO remove?
+      ]
 
 -- | @nix-env@ with Nix expression to obtain derivations.
 nixEnvQueryAvail :: Nixpkgs -> [NixArg] -> [FilePath] -> IO [EnvDrvInfo]
